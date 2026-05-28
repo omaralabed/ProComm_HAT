@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Network Settings{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    <div class="page-header">
+        <h1 class="page-title">Network Settings</h1>
+        <a href="/" class="btn btn-back">← Back</a>
+    </div>
+    
+    <!-- Current Status -->
+    <div class="settings-section">
+        <div class="form-group">
+            <label>Current IP Address:</label>
+            <div style="color: var(--accent-orange); font-size: 18px; font-weight: bold; padding: 10px 0;">
+                <span id="current-ip">Loading...</span> (<span id="current-mode">...</span>)
+            </div>
+        </div>
+    </div>
+    
+    <!-- Connection Mode -->
+    <div class="settings-section">
+        <h2 class="section-title">CONNECTION MODE</h2>
+        <div class="form-group">
+            <label>
+                <input type="radio" name="network-mode" value="dhcp" onchange="toggleStaticFields()" checked>
+                DHCP (Automatic)
+            </label>
+        </div>
+        <div class="form-group">
+            <label>
+                <input type="radio" name="network-mode" value="static" onchange="toggleStaticFields()">
+                Static IP (Manual)
+            </label>
+        </div>
+    </div>
+    
+    <!-- Static IP Settings -->
+    <div class="settings-section" id="static-settings" style="display: none;">
+        <h2 class="section-title">STATIC IP SETTINGS</h2>
+        <div class="form-group">
+            <label for="ip-address">IP Address:</label>
+            <input type="text" id="ip-address" placeholder="192.168.1.221">
+        </div>
+        <div class="form-group">
+            <label for="subnet-mask">Subnet Mask:</label>
+            <input type="text" id="subnet-mask" value="255.255.255.0">
+        </div>
+        <div class="form-group">
+            <label for="gateway">Gateway:</label>
+            <input type="text" id="gateway" placeholder="192.168.1.1">
+        </div>
+        <div class="form-group">
+            <label for="dns-server">DNS Server:</label>
+            <input type="text" id="dns-server" value="8.8.8.8">
+        </div>
+    </div>
+    
+    <!-- Warning -->
+    <div class="warning">
+        ⚠️ System will reboot after saving network changes.
+    </div>
+    
+    <!-- Actions -->
+    <div class="form-actions">
+        <button class="btn btn-save" onclick="saveNetworkSettings()">💾 Save & Reboot System</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- keyboard.js removed — virtual keyboard is built into index.js -->
+<script>
+    // Load current network configuration
+    fetch('/api/config/network')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('current-ip').textContent = data.current_ip || 'Unknown';
+            document.getElementById('current-mode').textContent = data.mode === 'static' ? 'Static' : 'DHCP';
+            
+            if (data.mode === 'static') {
+                document.querySelector('input[name="network-mode"][value="static"]').checked = true;
+                document.getElementById('ip-address').value = data.ip_address || '';
+                document.getElementById('subnet-mask').value = data.subnet_mask || '255.255.255.0';
+                document.getElementById('gateway').value = data.gateway || '';
+                document.getElementById('dns-server').value = data.dns_server || '8.8.8.8';
+                toggleStaticFields();
+            }
+        })
+        .catch(error => console.error('Error loading network config:', error));
+    
+    function toggleStaticFields() {
+        const mode = document.querySelector('input[name="network-mode"]:checked').value;
+        document.getElementById('static-settings').style.display = mode === 'static' ? 'block' : 'none';
+    }
+    
+    function saveNetworkSettings() {
+        const mode = document.querySelector('input[name="network-mode"]:checked').value;
+        
+        const config = { mode };
+        
+        if (mode === 'static') {
+            config.ip_address = document.getElementById('ip-address').value;
+            config.subnet_mask = document.getElementById('subnet-mask').value;
+            config.gateway = document.getElementById('gateway').value;
+            config.dns_server = document.getElementById('dns-server').value;
+            
+            if (!config.ip_address || !config.gateway) {
+                alert('Please fill in IP address and gateway');
+                return;
+            }
+        }
+        
+        if (!confirm('System will reboot after saving network settings. Continue?')) {
+            return;
+        }
+        
+        fetch('/api/config/network', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert('Network settings saved. System is rebooting...');
+        })
+        .catch(error => {
+            alert('Error saving network settings: ' + error);
+        });
+    }
+</script>
+{% endblock %}

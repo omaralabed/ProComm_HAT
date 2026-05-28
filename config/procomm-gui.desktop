@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=ProComm GUI
+Comment=ProComm Phone System GUI
+Exec=/home/procomm/ProComm_1/venv_with_system/bin/python /home/procomm/ProComm_1/main.py
+Path=/home/procomm/ProComm_1
+Terminal=false
+X-GNOME-Autostart-enabled=true

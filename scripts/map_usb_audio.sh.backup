@@ -1,0 +1,130 @@
+#!/bin/bash
+# =============================================================================
+# map_usb_audio.sh — Map USB audio dongles to stable channel numbers
+# =============================================================================
+#
+# This script discovers USB audio dongles and maps them to ProComm channels
+# based on their physical USB port position (not ALSA card number).
+#
+# USB port → Channel mapping is deterministic:
+#   The dongle in the same physical USB port always gets the same channel.
+#
+# Output: /tmp/procomm_usb_audio_map.json
+#   { "1": 2, "2": 4, "3": 5 }   means Channel 1→Card 2, Channel 2→Card 4, etc.
+#
+# Called by:
+#   - udev rule (on USB device add/remove)
+#   - App startup (to discover current mapping)
+#
+# Usage:
+#   map_usb_audio.sh [add|remove|scan] [card_name]
+# =============================================================================
+
+MAP_FILE="/run/procomm/usb_audio_map.json"
+LOG_FILE="/run/procomm/usb_audio_map.log"
+
+# Ensure directory exists and is writable by procomm user
+mkdir -p /run/procomm 2>/dev/null
+chmod 777 /run/procomm 2>/dev/null || true
+
+log() {
+    echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG_FILE" 2>/dev/null
+}
+
+# ── Define physical USB port → channel number mapping ──
+# These are the USB port paths from `udevadm info`.
+# Edit these if you rearrange which physical USB port each dongle is in.
+#
+# To find port paths, run:
+#   for card in $(cat /proc/asound/cards | grep USB | awk '{print $1}'); do
+#       echo "Card $card: $(udevadm info -q property /dev/snd/controlC$card | grep ID_PATH=)"
+#   done
+
+declare -A PORT_TO_CHANNEL
+# ── Hub A (top-level 4-port hub) ──
+PORT_TO_CHANNEL["platform-xhci-hcd.0-usb-0:1.1:1.0"]=1   # Hub A · Port 1  → Ch 1
+PORT_TO_CHANNEL["platform-xhci-hcd.0-usb-0:1.3:1.0"]=2   # Hub A · Port 3  → Ch 2
+PORT_TO_CHANNEL["platform-xhci-hcd.0-usb-0:1.4:1.0"]=3   # Hub A · Port 4  → Ch 3
+# ── Hub B (cascaded 4-port hub, connected to Hub A Port 2) ──
+PORT_TO_CHANNEL["platform-xhci-hcd.0-usb-0:1.2.2:1.0"]=4 # Hub B · Port 2  → Ch 4 (physical port 4)
+PORT_TO_CHANNEL["platform-xhci-hcd.0-usb-0:1.2.3:1.0"]=5 # Hub B · Port 3  → Ch 5 (physical port 5)
+PORT_TO_CHANNEL["platform-xhci-hcd.0-usb-0:1.2.4:1.0"]=6 # Hub B · Port 4  → Ch 6 (physical port 6)
+PORT_TO_CHANNEL["platform-xhci-hcd.0-usb-0:1.2.1:1.0"]=7 # Hub B · Port 1  → Ch 7 (physical port 7)
+
+# ── Operator headset dongle (Pi USB 1 — direct port, not on hub) ──
+# Set this to the ID_PATH of the headset dongle to enable headset monitoring.
+# Find it by running: udevadm info -q property /dev/snd/controlCX | grep ID_PATH
+# Leave empty to disable headset auto-discovery (use headset_card in config instead).
+HEADSET_PORT_PATH="platform-xhci-hcd.0-usb-0:2:1.0"   # Pi direct USB port (confirmed Card 0 location)
+
+scan_and_map() {
+    log "Scanning USB audio devices..."
+    
+    # Build JSON mapping: channel → ALSA card number
+    local json="{"
+    local first=true
+    local headset_card=-1
+    
+    for card_dir in /proc/asound/card*/; do
+        [ -d "$card_dir" ] || continue
+        card_num=$(basename "$card_dir" | sed 's/card//')
+        
+        # Check if this is a USB audio device
+        dev_path="/dev/snd/controlC${card_num}"
+        [ -e "$dev_path" ] || continue
+        
+        id_path=$(udevadm info -q property "$dev_path" 2>/dev/null | grep "^ID_PATH=" | cut -d= -f2)
+        [ -z "$id_path" ] && continue
+
+        # Check if this is the operator headset dongle
+        if [ -n "$HEADSET_PORT_PATH" ] && [ "$id_path" = "$HEADSET_PORT_PATH" ]; then
+            headset_card=$card_num
+            card_id=$(cat "${card_dir}id" 2>/dev/null)
+            log "  Headset dongle: Port $id_path → Card $card_num ($card_id)"
+            continue  # Don't add headset to the channel map
+        fi
+        
+        # Look up channel for this USB port
+        channel="${PORT_TO_CHANNEL[$id_path]}"
+        [ -z "$channel" ] && continue
+        
+        card_id=$(cat "${card_dir}id" 2>/dev/null)
+        log "  Port $id_path → Channel $channel → Card $card_num ($card_id)"
+        
+        if [ "$first" = true ]; then
+            first=false
+        else
+            json+=", "
+        fi
+        json+="\"${channel}\": ${card_num}"
+    done
+    
+    json+="}"
+    
+    # Write channel map to file
+    echo "$json" > "$MAP_FILE" 2>/dev/null && chmod 644 "$MAP_FILE" 2>/dev/null || true
+    log "Wrote channel mapping: $json → $MAP_FILE"
+
+    # Write headset card to separate file for engine.py to read
+    echo "$headset_card" > "/run/procomm/headset_card.txt" 2>/dev/null && \
+        chmod 644 "/run/procomm/headset_card.txt" 2>/dev/null || true
+    log "Headset card: $headset_card"
+    
+    # Always print both to stdout: channel_map then headset_card on separate line
+    echo "$json"
+    echo "HEADSET_CARD=$headset_card"
+}
+
+# ── Main ──
+ACTION="${1:-scan}"
+
+case "$ACTION" in
+    add|remove|scan)
+        log "Action: $ACTION ${2:-}"
+        scan_and_map
+        ;;
+    *)
+        echo "Usage: $0 [add|remove|scan] [card_name]"
+        exit 1
+        ;;
+esac

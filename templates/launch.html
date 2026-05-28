@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>ProComm Phone</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            min-height: 100dvh;
+            background: #0f0f0f;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 20px 32px;
+        }
+
+        /* ── Logo ──────────────────────────────────────── */
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 28px;
+        }
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, #1e5fa6 0%, #2d7dd2 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+        }
+        .logo-name {
+            font-size: 1.7em;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            color: #f0f6ff;
+        }
+
+        /* ── Card ──────────────────────────────────────── */
+        .card {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 400px;
+            overflow: hidden;
+        }
+
+        /* ── Section ───────────────────────────────────── */
+        .section {
+            padding: 22px 22px 20px;
+        }
+        .section + .section {
+            border-top: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 20px;
+            padding: 4px 11px;
+            font-size: 0.72em;
+            font-weight: 700;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        .badge-amber {
+            background: rgba(245, 158, 11, 0.15);
+            border: 1px solid rgba(245, 158, 11, 0.35);
+            color: #f59e0b;
+        }
+        .badge-green {
+            background: rgba(34, 197, 94, 0.12);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #4ade80;
+        }
+        .badge-blue {
+            background: rgba(45, 125, 210, 0.15);
+            border: 1px solid rgba(45, 125, 210, 0.35);
+            color: #60a5fa;
+        }
+
+        .section-title {
+            font-size: 1em;
+            font-weight: 700;
+            color: #f0f6ff;
+            margin-bottom: 7px;
+        }
+        .section-desc {
+            font-size: 0.83em;
+            color: rgba(148, 163, 184, 0.85);
+            line-height: 1.55;
+            margin-bottom: 16px;
+        }
+        .section-desc strong { color: #cbd5e1; }
+
+        /* ── Buttons ───────────────────────────────────── */
+        .btn {
+            display: block;
+            width: 100%;
+            padding: 14px 18px;
+            border: none;
+            border-radius: 12px;
+            font-size: 0.95em;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            text-align: center;
+            -webkit-tap-highlight-color: transparent;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .btn:active { opacity: 0.82; transform: scale(0.98); }
+
+        .btn-amber  { background: linear-gradient(135deg, #d97706, #f59e0b); color: #1a1100; }
+        .btn-green  { background: linear-gradient(135deg, #15803d, #22c55e); color: #fff; }
+        .btn-blue   { background: linear-gradient(135deg, #1e5fa6, #2d7dd2); color: #fff; }
+
+        /* ── OS tabs ───────────────────────────────────── */
+        .os-tabs {
+            display: flex;
+            gap: 0;
+            padding: 16px 22px 0;
+        }
+        .os-tab {
+            flex: 1;
+            padding: 10px 4px;
+            text-align: center;
+            font-size: 0.85em;
+            font-weight: 600;
+            color: rgba(148, 163, 184, 0.6);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            -webkit-tap-highlight-color: transparent;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .os-tab.active {
+            color: #60a5fa;
+            border-bottom-color: #2d7dd2;
+        }
+
+        /* ── Panel visibility ──────────────────────────── */
+        .os-panel { display: none; }
+        .os-panel.active { display: block; }
+
+        /* ── Help note ─────────────────────────────────── */
+        .help-note {
+            margin-top: 20px;
+            max-width: 400px;
+            font-size: 0.76em;
+            color: rgba(148, 163, 184, 0.45);
+            text-align: center;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="logo">
+        <div class="logo-icon">📞</div>
+        <div class="logo-name">ProComm</div>
+    </div>
+
+    {% if has_trust %}
+    <div class="card">
+
+        <!-- OS selector tabs -->
+        <div class="os-tabs">
+            <div class="os-tab active" id="tab-ios" onclick="switchTab('ios')">🍎 iPhone</div>
+            <div class="os-tab" id="tab-android" onclick="switchTab('android')">🤖 Android</div>
+        </div>
+
+        <!-- iPhone panel -->
+        <div class="os-panel active" id="panel-ios">
+            <div class="section">
+                <div class="badge badge-amber">⚠ First time only</div>
+                <div class="section-title">Install Trust Profile</div>
+                <div class="section-desc">
+                    Tap below — iOS will download the profile.<br>
+                    Then go to <strong>Settings → General → VPN &amp; Device Management</strong>, tap the profile, and tap <strong>Install</strong>. One-time only.
+                </div>
+                <a href="/trust" class="btn btn-amber">Install Trust Profile →</a>
+            </div>
+            <div class="section">
+                <div class="badge badge-blue">📞 Open phone</div>
+                <div class="section-title">Open Phone Keypad</div>
+                <div class="section-desc">Already installed the trust profile? Open your phone line.</div>
+                <a href="{{ phone_url }}" class="btn btn-blue">Open Phone Keypad →</a>
+            </div>
+        </div>
+
+        <!-- Android panel -->
+        <div class="os-panel" id="panel-android">
+            <div class="section">
+                <div class="badge badge-green">⚠ First time only</div>
+                <div class="section-title">Install CA Certificate</div>
+                <div class="section-desc">
+                    Tap below to download the certificate file, then install it:<br><br>
+                    <strong>Settings → Security → Encryption &amp; credentials → Install a certificate → CA certificate</strong><br><br>
+                    On Samsung: <strong>Settings → Biometrics &amp; security → Other security settings → Install from storage</strong><br><br>
+                    Select the downloaded <strong>ProComm-CA.crt</strong> file.
+                </div>
+                <a href="/ca-cert" class="btn btn-green">Download CA Certificate →</a>
+            </div>
+            <div class="section">
+                <div class="badge badge-blue">📞 Open phone</div>
+                <div class="section-title">Open Phone Keypad</div>
+                <div class="section-desc">Already installed the certificate? Open your phone line.</div>
+                <a href="{{ phone_url }}" class="btn btn-blue">Open Phone Keypad →</a>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="help-note">
+        Install the certificate once per device — after that, just scan and tap Open Phone Keypad.
+    </div>
+
+    {% else %}
+    <!-- No certs set up — go straight to phone -->
+    <div class="card">
+        <div class="section" style="padding-top: 28px; padding-bottom: 28px;">
+            <div class="section-title" style="text-align:center; margin-bottom:10px;">Ready to connect</div>
+            <div class="section-desc" style="text-align:center; margin-bottom:18px;">Tap below to open your phone line.</div>
+            <a href="{{ phone_url }}" class="btn btn-blue">Open Phone Keypad →</a>
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        function switchTab(os) {
+            document.querySelectorAll('.os-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.os-panel').forEach(p => p.classList.remove('active'));
+            document.getElementById('tab-' + os).classList.add('active');
+            document.getElementById('panel-' + os).classList.add('active');
+        }
+
+        // Auto-detect OS and pre-select the right tab (only when tabs exist)
+        (function() {
+            if (!document.getElementById('tab-android')) return;
+            const isAndroid = /android/i.test(navigator.userAgent);
+            if (isAndroid) switchTab('android');
+        })();
+    </script>
+
+</body>
+</html>

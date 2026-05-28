@@ -1,0 +1,20 @@
+# Udev rules for ProComm USB audio dongles
+# Maps physical USB ports to stable channel numbers (Channel 1-8)
+# This ensures the same USB port always gets the same channel number
+# even if ALSA card numbers change between boots
+
+# Trigger on USB audio device add/remove
+SUBSYSTEM=="sound", KERNEL=="card*", ACTION=="add", GOTO="usb_audio_map"
+SUBSYSTEM=="sound", KERNEL=="card*", ACTION=="remove", GOTO="usb_audio_cleanup"
+GOTO="usb_audio_end"
+
+LABEL="usb_audio_map"
+# Run script to update mapping file when USB audio device is added
+RUN+="/home/procomm/ProComm_1/scripts/map_usb_audio.sh add %k"
+GOTO="usb_audio_end"
+
+LABEL="usb_audio_cleanup"
+# Run script to clean up mapping when device is removed
+RUN+="/home/procomm/ProComm_1/scripts/map_usb_audio.sh remove %k"
+
+LABEL="usb_audio_end"

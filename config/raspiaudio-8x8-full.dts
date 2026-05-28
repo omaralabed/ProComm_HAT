@@ -1,0 +1,116 @@
+/*
+ * RaspiAudio 8xIN+8xOUT Full Overlay for Raspberry Pi 5
+ *
+ * Single simple-audio-card with TWO dai-links sharing the same CPU DAI:
+ *   - Link 0: dmic-codec       (capture  → green jacks / ADC, hw:0,0)
+ *   - Link 1: spdif-dit codec  (playback → red jacks / DAC, hw:0,1)
+ *
+ * spdif-dit is used as a passthrough playback codec (channels_max=384)
+ * since pcm5102a is hardcoded to channels_max=2. The actual audio data
+ * is clocked out the I2S TX lines to the four PCM5102A DACs.
+ *
+ * RP1 I2S0 Pin Assignment (gpio18-27, all support i2s0 fsel=2):
+ *   gpio18 = BCLK,  gpio19 = LRCLK
+ *   gpio20 = SDI0,  gpio21 = SDO0   (capture/playback lane 0)
+ *   gpio22 = SDI1,  gpio23 = SDO1   (capture/playback lane 1)
+ *   gpio24 = SDI2,  gpio25 = SDO2   (capture/playback lane 2)
+ *   gpio26 = SDI3,  gpio27 = SDO3   (capture/playback lane 3)
+ */
+
+/dts-v1/;
+/plugin/;
+
+/ {
+	compatible = "brcm,bcm2712";
+
+	/* Fragment 0: Extended pin group with ALL i2s0 data lines (TX+RX) */
+	fragment@0 {
+		target = <&gpio>;
+		__overlay__ {
+			rp1_i2s0_8x8: rp1_i2s0_8x8 {
+				function = "i2s0";
+				pins = "gpio18", "gpio19",
+				       "gpio20", "gpio21",
+				       "gpio22", "gpio23",
+				       "gpio24", "gpio25",
+				       "gpio26", "gpio27";
+				bias-disable;
+			};
+		};
+	};
+
+	/* Fragment 1: Enable i2s_clk_producer with extended pin group */
+	fragment@1 {
+		target = <&i2s_clk_producer>;
+		__overlay__ {
+			pinctrl-names = "default";
+			pinctrl-0 = <&rp1_i2s0_8x8>;
+			status = "okay";
+		};
+	};
+
+	/* Fragment 2: Codecs + sound card */
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			/*
+			 * spdif-dit: passthrough stub codec with channels_max=384.
+			 * Used for playback so the I2S controller isn't limited to
+			 * the pcm5102a's hardcoded channels_max=2.
+			 */
+			spdif_dit: raspiaudio-dac-codec {
+				#sound-dai-cells = <0>;
+				compatible = "linux,spdif-dit";
+				status = "okay";
+			};
+
+			/* dmic-codec: generic I2S capture codec, 8 channels */
+			dmic_codec: raspiaudio-adc-codec {
+				#sound-dai-cells = <0>;
+				compatible = "dmic-codec";
+				num-channels = <8>;
+				status = "okay";
+			};
+		};
+	};
+
+	/* Fragment 3: Single sound card with capture + playback DAI links */
+	fragment@3 {
+		target = <&sound>;
+		__overlay__ {
+			compatible = "simple-audio-card";
+			simple-audio-card,name = "RaspiAudio-8x8";
+			status = "okay";
+
+			/* Capture link (device 0): green jacks → ADC → CPU */
+			simple-audio-card,dai-link@0 {
+				reg = <0>;
+				format = "i2s";
+				bitclock-master = <&link0_cpu>;
+				frame-master = <&link0_cpu>;
+
+				link0_cpu: cpu {
+					sound-dai = <&i2s_clk_producer>;
+				};
+				link0_codec: codec {
+					sound-dai = <&dmic_codec>;
+				};
+			};
+
+			/* Playback link (device 1): CPU → spdif-dit → DAC → red jacks */
+			simple-audio-card,dai-link@1 {
+				reg = <1>;
+				format = "i2s";
+				bitclock-master = <&link1_cpu>;
+				frame-master = <&link1_cpu>;
+
+				link1_cpu: cpu {
+					sound-dai = <&i2s_clk_producer>;
+				};
+				link1_codec: codec {
+					sound-dai = <&spdif_dit>;
+				};
+			};
+		};
+	};
+};

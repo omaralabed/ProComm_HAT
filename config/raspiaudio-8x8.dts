@@ -1,0 +1,105 @@
+// Device Tree Overlay for RaspiAudio 8xIN+8xOUT HAT
+// Based on hifiberry-dac8x but adds DMIC capture support
+// Compatible with Raspberry Pi 5 (BCM2712)
+
+/dts-v1/;
+/plugin/;
+
+/ {
+    compatible = "brcm,bcm2712";
+
+    // I2S pin configuration for Pi 5
+    fragment@0 {
+        target = <&gpio>;
+        __overlay__ {
+            rp1_i2s0_8x8_pins: rp1_i2s0_8x8_pins {
+                function = "i2s0";
+                pins = "gpio18", "gpio19", "gpio21", "gpio23", "gpio25", "gpio27";
+                bias-disable;
+            };
+        };
+    };
+
+    // I2S controller setup
+    fragment@1 {
+        target = <&i2s_clk_producer>;
+        __overlay__ {
+            pinctrl-names = "default";
+            pinctrl-0 = <&rp1_i2s0_8x8_pins>;
+            status = "okay";
+        };
+    };
+
+    // PCM5102A DAC codec (8-channel output)
+    fragment@2 {
+        target-path = "/";
+        __overlay__ {
+            pcm5102a_codec: pcm5102a-codec {
+                #sound-dai-cells = <0>;
+                compatible = "ti,pcm5102a";
+                status = "okay";
+            };
+        };
+    };
+
+    // DMIC codec for capture (8-channel input)
+    fragment@3 {
+        target-path = "/";
+        __overlay__ {
+            dmic_codec: dmic-codec {
+                #sound-dai-cells = <0>;
+                compatible = "dmic-codec";
+                num-channels = <8>;
+                wakeup-delay-ms = <50>;
+                status = "okay";
+            };
+        };
+    };
+
+    // Sound card with separate playback and capture
+    fragment@4 {
+        target = <&sound>;
+        __overlay__ {
+            compatible = "simple-audio-card";
+            simple-audio-card,name = "RaspiAudio_8x8";
+            simple-audio-card,format = "i2s";
+            status = "okay";
+            
+            // Playback (DAC) link
+            simple-audio-card,dai-link@0 {
+                format = "i2s";
+                bitclock-master = <&dailink0_master>;
+                frame-master = <&dailink0_master>;
+                mclk-fs = <256>;
+                
+                dailink0_master: cpu {
+                    sound-dai = <&i2s_clk_producer>;
+                    dai-tdm-slot-num = <8>;
+                    dai-tdm-slot-width = <32>;
+                };
+                
+                codec {
+                    sound-dai = <&pcm5102a_codec>;
+                };
+            };
+            
+            // Capture (ADC) link
+            simple-audio-card,dai-link@1 {
+                format = "i2s";
+                bitclock-master = <&dailink1_master>;
+                frame-master = <&dailink1_master>;
+                mclk-fs = <256>;
+                
+                dailink1_master: cpu {
+                    sound-dai = <&i2s_clk_producer>;
+                    dai-tdm-slot-num = <8>;
+                    dai-tdm-slot-width = <32>;
+                };
+                
+                codec {
+                    sound-dai = <&dmic_codec>;
+                };
+            };
+        };
+    };
+};

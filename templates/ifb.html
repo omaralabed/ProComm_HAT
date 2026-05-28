@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ProComm IFB">
+  <meta name="theme-color" content="#111111">
+  <title>ProComm IFB</title>
+  <link rel="stylesheet" href="/static/css/ifb.css">
+</head>
+<body>
+
+<!-- ── Status bar ──────────────────────────────────────────────── -->
+<div id="status-bar">
+  <span id="status-dot" class="dot dot-connecting"></span>
+  <span id="status-text">Connecting…</span>
+  <span class="ifb-badge">IFB</span>
+</div>
+
+<!-- ── Monitor bar (visible when listening) ────────────────────── -->
+<div id="monitor-bar" class="hidden">
+  <span class="monitor-pulse"></span>
+  <span id="monitor-bar-text">Monitoring Line —</span>
+  <button id="btn-stop">Stop</button>
+</div>
+
+<!-- ── Hint text ───────────────────────────────────────────────── -->
+<div id="hint-text">Tap an active line to listen</div>
+
+<!-- ── Lines grid ──────────────────────────────────────────────── -->
+<div id="lines-grid">
+  <!-- Cards are built by ifb.js -->
+</div>
+
+<!-- ── Toast ────────────────────────────────────────────────────── -->
+<div id="toast" class="hidden"></div>
+
+<script src="/static/js/socket.io.min.js"></script>
+<script src="/static/js/ifb.js"></script>
+</body>
+</html>

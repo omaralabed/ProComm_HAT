@@ -1,0 +1,29 @@
+{
+  "IFB": [
+    {
+      "branches": [
+        {
+          "id": "id-1773347889366-28132cee648ae",
+          "name": "OMAR",
+          "number": "6463789723"
+        },
+        {
+          "id": "id-1773347914271-0390828842e1e",
+          "name": "NBC IFB",
+          "number": "2126647889"
+        }
+      ],
+      "id": "id-1773347867910-ca2a73a8242f8",
+      "name": "IFB"
+    }
+  ],
+  "PL": [],
+  "prefixes": [
+    {
+      "id": "id-1779898505189-6812d45a1ab78",
+      "label": "NBC",
+      "value": "646202"
+    }
+  ],
+  "defaultPrefixId": null
+}

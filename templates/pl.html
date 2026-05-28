@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ProComm PL">
+  <meta name="theme-color" content="#111111">
+  <title>ProComm PL</title>
+  <link rel="stylesheet" href="/static/css/pl.css?v=7">
+</head>
+<body>
+
+<!-- ── Status bar ──────────────────────────────────────────────── -->
+<div id="status-bar">
+  <span id="status-dot" class="dot dot-connecting"></span>
+  <span id="status-text">Connecting…</span>
+  <span class="pl-badge">PL</span>
+</div>
+
+<!-- ── Dial / Hang Up row ──────────────────────────────────────── -->
+<div id="dial-row">
+  <input id="num-input" type="tel" placeholder="Enter conference number…" autocomplete="off">
+  <button id="btn-action">Dial</button>
+</div>
+
+<!-- ── Hint text ───────────────────────────────────────────────── -->
+<div id="hint-text">Tap an idle line then enter a number, or tap an active line to join</div>
+
+<!-- ── Lines grid ──────────────────────────────────────────────── -->
+<div id="lines-grid">
+  <!-- Cards built by pl.js -->
+</div>
+
+<!-- ── PTT button ──────────────────────────────────────────────── -->
+<div id="ptt-wrap">
+  <button id="btn-ptt" class="ptt-idle">Hold to Talk</button>
+  <div id="ptt-hint">Select a line first</div>
+</div>
+
+<!-- ── Toast ────────────────────────────────────────────────────── -->
+<div id="toast" class="hidden"></div>
+
+<script src="/static/js/socket.io.min.js"></script>
+<script src="/static/js/pl.js?v=20260512a"></script>
+</body>
+</html>

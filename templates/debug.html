@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProComm Debug - Direct Browser Test</title>
+    <style>
+        body {
+            font-family: monospace;
+            background: #1a1a1a;
+            color: #00ff00;
+            padding: 20px;
+            margin: 0;
+        }
+        .section {
+            background: #2a2a2a;
+            border: 1px solid #00ff00;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        h2 {
+            color: #00ff00;
+            margin-top: 0;
+        }
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00cc00;
+        }
+        .log {
+            background: #000;
+            border: 1px solid #333;
+            padding: 10px;
+            margin: 10px 0;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 5px;
+        }
+        .log-info { color: #00ff00; }
+        .log-error { color: #ff0000; }
+        .log-warn { color: #ffff00; }
+        .status {
+            padding: 5px 10px;
+            border-radius: 3px;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        .status-connected { background: #00ff00; color: #000; }
+        .status-disconnected { background: #ff0000; color: #fff; }
+        .status-connecting { background: #ffff00; color: #000; }
+        input {
+            background: #333;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 5px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 ProComm Debug Console</h1>
+    <p>Direct browser test - Use this in Chrome/Firefox to test without PyQt5 WebEngine</p>
+    
+    <div class="section">
+        <h2>WebSocket Status</h2>
+        <div id="ws-status" class="status status-disconnected">DISCONNECTED</div>
+        <div>
+            <button onclick="wsConnect()">Connect WebSocket</button>
+            <button onclick="wsDisconnect()">Disconnect</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>API Tests</h2>
+        <div>
+            <input type="number" id="line-id" value="1" min="1" max="8" placeholder="Line ID">
+            <input type="text" id="phone-number" value="1002" placeholder="Phone Number">
+        </div>
+        <div>
+            <button onclick="testGetLines()">GET /api/lines</button>
+            <button onclick="testGetLine()">GET /api/lines/{id}</button>
+            <button onclick="testDial()">POST /api/lines/{id}/dial</button>
+            <button onclick="testHangup()">POST /api/lines/{id}/hangup</button>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>Line States</h2>
+        <div id="line-states"></div>
+    </div>
+
+    <div class="section">
+        <h2>Console Log</h2>
+        <div class="log" id="console-log"></div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        let socket = null;
+        let logCount = 0;
+
+        function log(message, type = 'info') {
+            logCount++;
+            const timestamp = new Date().toLocaleTimeString();
+            const logDiv = document.getElementById('console-log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            
+            // Keep only last 100 entries
+            if (logCount > 100) {
+                logDiv.removeChild(logDiv.firstChild);
+            }
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+
+        function updateStatus(status) {
+            const statusEl = document.getElementById('ws-status');
+            statusEl.className = 'status';
+            switch(status) {
+                case 'connected':
+                    statusEl.classList.add('status-connected');
+                    statusEl.textContent = 'CONNECTED';
+                    break;
+                case 'connecting':
+                    statusEl.classList.add('status-connecting');
+                    statusEl.textContent = 'CONNECTING...';
+                    break;
+                case 'disconnected':
+                    statusEl.classList.add('status-disconnected');
+                    statusEl.textContent = 'DISCONNECTED';
+                    break;
+            }
+        }
+
+        function wsConnect() {
+            log('Attempting WebSocket connection...', 'info');
+            updateStatus('connecting');
+            
+            socket = io({
+                reconnection: true,
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000,
+                reconnectionDelayMax: 5000,
+                timeout: 10000,
+                transports: ['polling', 'websocket'] // Try polling first for debugging
+            });
+
+            socket.on('connect', () => {
+                log('✅ WebSocket CONNECTED!', 'info');
+                updateStatus('connected');
+                socket.emit('subscribe', { lines: [1, 2, 3, 4, 5, 6, 7, 8] });
+                log('Subscribed to all line updates', 'info');
+            });
+
+            socket.on('disconnect', (reason) => {
+                log(`❌ WebSocket DISCONNECTED: ${reason}`, 'error');
+                updateStatus('disconnected');
+            });
+
+            socket.on('connect_error', (error) => {
+                log(`❌ Connection Error: ${error.message}`, 'error');
+            });
+
+            socket.on('reconnect', (attemptNumber) => {
+                log(`🔄 Reconnected after ${attemptNumber} attempts`, 'info');
+            });
+
+            socket.on('reconnect_attempt', (attemptNumber) => {
+                log(`🔄 Reconnect attempt ${attemptNumber}...`, 'warn');
+            });
+
+            socket.on('reconnect_error', (error) => {
+                log(`❌ Reconnect error: ${error.message}`, 'error');
+            });
+
+            socket.on('reconnect_failed', () => {
+                log('❌ Reconnect FAILED - giving up', 'error');
+            });
+
+            socket.on('line_status', (data) => {
+                log(`📞 Line ${data.line_id} status: ${data.state}`, 'info');
+                updateLineStates();
+            });
+
+            socket.on('sip_registration', (data) => {
+                log(`📝 SIP Registration: Line ${data.line_id} = ${data.registered}`, 'info');
+            });
+
+            socket.on('connected', (data) => {
+                log(`🔌 Server says: ${JSON.stringify(data)}`, 'info');
+            });
+        }
+
+        function wsDisconnect() {
+            if (socket) {
+                log('Disconnecting WebSocket...', 'warn');
+                socket.disconnect();
+                socket = null;
+                updateStatus('disconnected');
+            }
+        }
+
+        async function testGetLines() {
+            try {
+                log('GET /api/lines', 'info');
+                const response = await fetch('/api/lines');
+                const data = await response.json();
+                log(`✅ Response: ${JSON.stringify(data, null, 2)}`, 'info');
+                updateLineStates(data && data.lines ? data.lines : []);
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testGetLine() {
+            try {
+                const lineId = document.getElementById('line-id').value;
+                log(`GET /api/lines/${lineId}`, 'info');
+                const response = await fetch(`/api/lines/${lineId}`);
+                const data = await response.json();
+                log(`✅ Response: ${JSON.stringify(data, null, 2)}`, 'info');
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testDial() {
+            try {
+                const lineId = document.getElementById('line-id').value;
+                const phoneNumber = document.getElementById('phone-number').value;
+                log(`POST /api/lines/${lineId}/dial {"phone_number": "${phoneNumber}"}`, 'info');
+                const response = await fetch(`/api/lines/${lineId}/dial`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ phone_number: phoneNumber })
+                });
+                const data = await response.json();
+                log(`✅ Response: ${JSON.stringify(data, null, 2)}`, 'info');
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testHangup() {
+            try {
+                const lineId = document.getElementById('line-id').value;
+                log(`POST /api/lines/${lineId}/hangup`, 'info');
+                const response = await fetch(`/api/lines/${lineId}/hangup`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                log(`✅ Response: ${JSON.stringify(data, null, 2)}`, 'info');
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        function updateLineStates(lines) {
+            const container = document.getElementById('line-states');
+            if (!lines || !Array.isArray(lines)) return;
+
+            container.innerHTML = '<table style="width:100%; color:#00ff00; border-collapse: collapse;">' +
+                '<tr><th>Line</th><th>State</th><th>Phone</th><th>Duration</th><th>Registered</th></tr>';
+
+            lines.forEach(line => {
+                const stateColor = {
+                    'idle': '#888',
+                    'dialing': '#ffff00',
+                    'ringing': '#ff9900',
+                    'connected': '#00ff00',
+                    'error': '#ff0000'
+                }[line.state] || '#888';
+                
+                container.innerHTML += `<tr style="border-bottom: 1px solid #333;">
+                    <td style="padding:5px;">${line.line_id}</td>
+                    <td style="padding:5px; color:${stateColor}; font-weight:bold;">${line.state}</td>
+                    <td style="padding:5px;">${line.phone_number || '-'}</td>
+                    <td style="padding:5px;">${line.duration ? line.duration.toFixed(2) + 's' : '-'}</td>
+                    <td style="padding:5px;">${line.sip_registered ? '✅' : '❌'}</td>
+                </tr>`;
+            });
+            
+            container.innerHTML += '</table>';
+        }
+
+        function clearLogs() {
+            document.getElementById('console-log').innerHTML = '';
+            logCount = 0;
+        }
+
+        // Auto-connect on load
+        window.addEventListener('load', () => {
+            log('🚀 Debug page loaded', 'info');
+            log('Click "Connect WebSocket" to start', 'info');
+            testGetLines(); // Get initial line states
+        });
+
+        // Auto-refresh line states every 2 seconds
+        setInterval(() => {
+            if (socket && socket.connected) {
+                testGetLines();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+# ProComm Fixed USB Audio Port Mapping
+# Hub layout: Colgate MTT 12-port (3x sub-hubs of 4 ports each)
+# Ports 1-8 = Audio Channels 1-8, Port 9 = Headset
+#
+# Sub-hub 1 (2-1.1.x) = Physical ports 1-4
+# Sub-hub 2 (2-1.2.x) = Physical ports 5-8
+# Sub-hub 3 (2-1.3.x) = Physical ports 9-12
+#
+# Install: sudo cp 99-usb-audio-fixed.rules /etc/udev/rules.d/
+#          sudo udevadm control --reload-rules && sudo udevadm trigger --action=add --subsystem-match=sound
+
+# Port 1 → Channel 1
+SUBSYSTEM=="sound", ACTION=="add", KERNELS=="2-1.1.1", ATTR{id}="ProComm_CH1"
+
+# Port 2 → Channel 2
+SUBSYSTEM=="sound", ACTION=="add", KERNELS=="2-1.1.2", ATTR{id}="ProComm_CH2"
+
+# Port 3 → Channel 3
+SUBSYSTEM=="sound", ACTION=="add", KERNELS=="2-1.1.3", ATTR{id}="ProComm_CH3"
+
+# Port 4 → Channel 4
+SUBSYSTEM=="sound", ACTION=="add", KERNELS=="2-1.1.4", ATTR{id}="ProComm_CH4"
+
+# Port 5 → Channel 5
+SUBSYSTEM=="sound", ACTION=="add", KERNELS=="2-1.2.1", ATTR{id}="ProComm_CH5"
+
+# Port 6 → Channel 6
+SUBSYSTEM=="sound", ACTION=="add", KERNELS=="2-1.2.2", ATTR{id}="ProComm_CH6"
+
+# Port 7 → Channel 7
+SUBSYSTEM=="sound", ACTION=="add", KERNELS=="2-1.2.3", ATTR{id}="ProComm_CH7"
+
+# Port 8 → Channel 8
+SUBSYSTEM=="sound", ACTION=="add", KERNELS=="2-1.2.4", ATTR{id}="ProComm_CH8"
+
+# Port 9 → Headset
+SUBSYSTEM=="sound", ACTION=="add", KERNELS=="2-1.3.1", ATTR{id}="ProComm_Headset"

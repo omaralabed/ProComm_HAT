@@ -1,0 +1,18 @@
+[Unit]
+Description=ProComm SIP Phone System
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=procomm
+WorkingDirectory=/home/procomm/ProComm_1
+ExecStart=/home/procomm/ProComm_1/venv_with_system/bin/python /home/procomm/ProComm_1/app.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/home/procomm/ProComm_1/app.log
+StandardError=append:/home/procomm/ProComm_1/app.log
+Environment="PATH=/home/procomm/ProComm_1/venv_with_system/bin:/usr/local/bin:/usr/bin:/bin"
+
+[Install]
+WantedBy=multi-user.target

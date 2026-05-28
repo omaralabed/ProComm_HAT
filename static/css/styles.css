@@ -1,0 +1,790 @@
+/* PhoneSystem-Web - Main Stylesheet */
+/* Dark theme matching PyQt5 design with orange/cyan accents */
+
+/* =================================================================
+   GLOBAL STYLES
+   ================================================================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* Color Palette */
+    --bg-dark: #1a1a1a;
+    --bg-light: #2a2a2a;
+    --bg-card: #2d2420;
+    --accent-orange: #ff6b35;
+    --accent-cyan: #00d4ff;
+    --success-green: #28a745;
+    --danger-red: #dc3545;
+    --text-primary: #ffffff;
+    --text-secondary: #cccccc;
+    --text-muted: #95e1d3;
+    --border: #404040;
+    
+    /* Typography */
+    --font-family: 'Segoe UI', Arial, sans-serif;
+    --font-size-base: 16px;
+    --font-size-large: 20px;
+    --font-size-xlarge: 28px;
+}
+
+body {
+    font-family: var(--font-family);
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    font-size: var(--font-size-base);
+    line-height: 1.5;
+    overflow-x: hidden;
+}
+
+/* =================================================================
+   LAYOUT
+   ================================================================= */
+
+.container {
+    width: 100%;
+    min-height: 100vh;
+    padding: 3px;
+    display: flex;
+    flex-direction: column;
+}
+
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+/* =================================================================
+   LINE GRID - 2x4 Layout
+   ================================================================= */
+
+.lines-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 8px;
+    padding: 10px;
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+/* Line Widget */
+.line-widget {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color 0.3s;
+}
+
+.line-widget:hover {
+    border-color: var(--accent-orange);
+    background-color: #3a332d;
+}
+
+.line-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.line-number {
+    color: var(--accent-orange);
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.audio-label {
+    color: var(--text-primary);
+    background-color: var(--accent-cyan);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 9px;
+    font-weight: bold;
+    min-width: 85px;
+    text-align: center;
+}
+
+.line-status {
+    color: var(--text-muted);
+    font-size: 11px;
+    padding: 6px 0;
+    min-height: 25px;
+}
+
+.line-status.active {
+    color: var(--danger-red);
+    font-weight: bold;
+}
+
+.line-status.ringing {
+    color: var(--accent-orange);
+    font-weight: bold;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.line-controls {
+    display: flex;
+    gap: 15px;
+}
+
+.channel-picker {
+    flex: 1;
+}
+
+/* =================================================================
+   BUTTONS
+   ================================================================= */
+
+button, .btn {
+    font-family: var(--font-family);
+    font-size: var(--font-size-base);
+    font-weight: bold;
+    padding: 15px 25px;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    background-color: var(--bg-light);
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.3s;
+    min-height: 50px;
+}
+
+button:hover, .btn:hover {
+    background-color: #333333;
+    border-color: var(--accent-orange);
+}
+
+button:active, .btn:active {
+    background-color: var(--bg-dark);
+}
+
+button:disabled, .btn:disabled {
+    background-color: var(--bg-dark);
+    color: #666666;
+    border-color: #333333;
+    cursor: not-allowed;
+}
+
+/* Action Buttons */
+.btn-dial {
+    background: linear-gradient(90deg, #2ed573 0%, #26de81 100%);
+    border: 3px solid white;
+    color: white;
+    padding: 8px 15px;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+.btn-dial:hover {
+    background: linear-gradient(90deg, #3ee583 0%, #36ee91 100%);
+    border-color: var(--accent-cyan);
+}
+
+.btn-hangup {
+    background: linear-gradient(90deg, #dc3545 0%, #c82333 100%);
+    border: 3px solid white;
+    color: white;
+    padding: 8px 15px;
+    font-size: 10px;
+    letter-spacing: 1px;
+}
+
+.btn-hangup:hover {
+    background: linear-gradient(90deg, #e74c3c 0%, #dc3545 100%);
+    border-color: var(--accent-cyan);
+}
+
+.btn-test {
+    background: linear-gradient(90deg, var(--accent-cyan) 0%, #0088cc 100%);
+    border: none;
+    color: white;
+    min-height: 50px;
+    min-width: 200px;
+}
+
+.btn-test:hover {
+    background: linear-gradient(90deg, #00e4ff 0%, #0099dd 100%);
+}
+
+.btn-test:active {
+    background: linear-gradient(90deg, #2ed573 0%, #26de81 100%);
+}
+
+/* Settings Button */
+.btn-settings {
+    background-color: var(--bg-dark);
+    border: 2px solid var(--border);
+    color: var(--accent-orange);
+    font-size: 18px;
+    min-width: 55px;
+    min-height: 55px;
+    max-width: 65px;
+    max-height: 65px;
+    padding: 10px;
+}
+
+.btn-settings:hover {
+    background-color: var(--bg-light);
+    border-color: var(--accent-orange);
+}
+
+/* =================================================================
+   DROPDOWNS / SELECT
+   ================================================================= */
+
+select, .select {
+    background-color: var(--bg-light);
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 15px;
+    color: var(--text-primary);
+    font-weight: bold;
+    font-size: 18px;
+    min-height: 50px;
+    cursor: pointer;
+}
+
+select:hover, .select:hover {
+    border-color: var(--accent-orange);
+    background-color: #333333;
+}
+
+select:focus, .select:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+}
+
+/* =================================================================
+   BOTTOM BAR
+   ================================================================= */
+
+.bottom-bar {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 8px 10px;
+    max-height: 80px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.bottom-bar label {
+    color: var(--accent-orange);
+    font-weight: bold;
+    font-size: 11pt;
+}
+
+.bottom-bar select {
+    min-width: 150px;
+    min-height: 60px;
+}
+
+.bottom-bar .spacer {
+    flex: 1;
+}
+
+/* =================================================================
+   MODALS / DIALOGS
+   ================================================================= */
+
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    justify-content: center;
+    align-items: center;
+}
+
+.modal.active {
+    display: flex;
+}
+
+.modal-content {
+    background-color: var(--bg-dark);
+    border: 3px solid var(--accent-cyan);
+    border-radius: 12px;
+    padding: 25px;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.modal-title {
+    color: var(--accent-cyan);
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 28px;
+    cursor: pointer;
+    padding: 0;
+    min-height: auto;
+}
+
+.modal-close:hover {
+    color: var(--danger-red);
+}
+
+/* =================================================================
+   DIAL PAD
+   ================================================================= */
+
+.dial-pad {
+    background-color: var(--bg-dark);
+    padding: 25px;
+    border-radius: 12px;
+    max-width: 600px;
+}
+
+.dial-display {
+    background: linear-gradient(180deg, #2d3748 0%, #1a202c 100%);
+    color: var(--accent-cyan);
+    border: 2px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    padding: 15px;
+    font-size: 24px;
+    font-weight: bold;
+    letter-spacing: 2px;
+    text-align: right;
+    margin-bottom: 20px;
+    min-height: 60px;
+}
+
+.dial-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.dial-btn {
+    background: linear-gradient(180deg, #4a5568 0%, #2d3748 100%);
+    border: 2px solid rgba(0, 212, 255, 0.3);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 32px;
+    font-weight: bold;
+    padding: 20px;
+    min-height: 80px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.dial-btn:hover {
+    background: linear-gradient(180deg, #5a6578 0%, #3d4758 100%);
+    border-color: var(--accent-cyan);
+    transform: scale(1.05);
+}
+
+.dial-btn:active {
+    background: linear-gradient(180deg, #3d4758 0%, #2d3748 100%);
+    transform: scale(0.95);
+}
+
+.dial-actions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.dial-actions button {
+    flex: 1;
+    font-size: 16px;
+    padding: 12px;
+}
+
+.btn-call {
+    background: linear-gradient(90deg, #2ed573 0%, #26de81 100%);
+    border: 3px solid white;
+    color: white;
+    font-size: 20px;
+    padding: 20px;
+}
+
+.btn-call:hover {
+    background: linear-gradient(90deg, #3ee583 0%, #36ee91 100%);
+}
+
+.btn-cancel {
+    background: linear-gradient(90deg, #666666 0%, #444444 100%);
+    border: 3px solid #666666;
+    color: white;
+    padding: 20px;
+}
+
+.btn-cancel:hover {
+    background: linear-gradient(90deg, #777777 0%, #555555 100%);
+}
+
+/* =================================================================
+   SETTINGS PAGES
+   ================================================================= */
+
+.settings-page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 0;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 30px;
+}
+
+.page-title {
+    color: var(--accent-cyan);
+    font-size: var(--font-size-xlarge);
+    font-weight: bold;
+}
+
+.btn-back {
+    background-color: var(--bg-light);
+    padding: 10px 20px;
+    font-size: 16px;
+}
+
+.settings-section {
+    background-color: var(--bg-light);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.section-title {
+    color: var(--accent-orange);
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 15px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    color: var(--text-secondary);
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    background-color: #2d3748;
+    border: 2px solid rgba(0, 212, 255, 0.3);
+    border-radius: 6px;
+    padding: 12px;
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--accent-cyan);
+}
+
+/* Collapsible Line Settings */
+.line-section {
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 10px;
+    overflow: hidden;
+}
+
+.line-section-header {
+    background-color: var(--bg-card);
+    padding: 15px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.line-section-header:hover {
+    background-color: #3a332d;
+}
+
+.line-section-header .line-number {
+    font-size: 18px;
+}
+
+.line-section-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background-color: var(--bg-light);
+}
+
+.line-section.expanded .line-section-content {
+    max-height: 500px;
+    padding: 20px;
+}
+
+.expand-icon {
+    transition: transform 0.3s;
+}
+
+.line-section.expanded .expand-icon {
+    transform: rotate(90deg);
+}
+
+/* Form actions */
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 30px;
+}
+
+.btn-save {
+    background-color: var(--success-green);
+    border-color: var(--success-green);
+    color: white;
+    padding: 15px 40px;
+    font-size: 18px;
+}
+
+.btn-save:hover {
+    background-color: #34ce57;
+}
+
+/* Warning messages */
+.warning {
+    background-color: rgba(255, 165, 0, 0.1);
+    border: 2px solid #ffa500;
+    border-radius: 6px;
+    padding: 15px;
+    color: #ffa500;
+    margin-top: 20px;
+}
+
+/* =================================================================
+   RESPONSIVE DESIGN
+   ================================================================= */
+
+@media (max-width: 1200px) {
+    .lines-grid {
+        gap: 6px;
+        padding: 8px;
+    }
+    
+    .line-widget {
+        padding: 8px;
+    }
+}
+
+@media (max-width: 768px) {
+    .lines-grid {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(8, auto);
+    }
+    
+    .dial-pad {
+        max-width: 100%;
+    }
+}
+
+/* =================================================================
+   UTILITY CLASSES
+   ================================================================= */
+
+.text-center {
+    text-align: center;
+}
+
+.text-muted {
+    color: var(--text-secondary);
+}
+
+.mt-1 { margin-top: 10px; }
+.mt-2 { margin-top: 20px; }
+.mt-3 { margin-top: 30px; }
+
+.mb-1 { margin-bottom: 10px; }
+.mb-2 { margin-bottom: 20px; }
+.mb-3 { margin-bottom: 30px; }
+
+.hidden {
+    display: none !important;
+}
+
+/* Disable zoom/pinch while keeping touch */
+body, html {
+    touch-action: pan-y pan-x;
+    -ms-touch-action: pan-y pan-x;
+}
+
+button, input, select {
+    touch-action: manipulation;
+}
+
+/* =================================================================
+   AUDIO MIXER
+   ================================================================= */
+
+.mixer-dropdown {
+    padding: 18px 12px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 12px;
+}
+
+.mixer-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 14px;
+}
+.mixer-row:last-child {
+    margin-bottom: 0;
+}
+
+.mixer-strip {
+    background: linear-gradient(145deg, #2a2d35 0%, #1f2229 100%);
+    border: 2px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 14px 12px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.mixer-strip.mixer-active {
+    border-color: rgba(0, 212, 255, 0.5);
+    box-shadow: 0 0 16px rgba(0, 212, 255, 0.15);
+}
+
+.mixer-ch-label {
+    font-weight: 700;
+    color: #ff6b35;
+    font-size: 13px;
+    margin-bottom: 16px;
+    letter-spacing: 0.8px;
+    text-align: center;
+}
+
+.mixer-faders {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.mixer-fader {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.mixer-fader-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.mixer-value {
+    font-size: 11px;
+    font-weight: 600;
+    color: #95e1d3;
+    font-variant-numeric: tabular-nums;
+    min-width: 24px;
+    text-align: right;
+}
+
+.mixer-slider-wrap {
+    width: 100%;
+    height: 32px;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+/* Horizontal slider */
+.mixer-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: linear-gradient(to right, rgba(60, 60, 60, 0.8) 0%, rgba(100, 255, 100, 0.2) 100%);
+    border-radius: 3px;
+    outline: none;
+    cursor: pointer;
+}
+
+.mixer-slider.mixer-output {
+    background: linear-gradient(to right, rgba(60, 60, 60, 0.8) 0%, rgba(0, 212, 255, 0.2) 100%);
+}
+
+/* Webkit thumb (horizontal) */
+.mixer-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 24px;
+    border-radius: 3px;
+    background: linear-gradient(to bottom, #f0f0f0 0%, #afafaf 50%, #f0f0f0 100%);
+    border: 1px solid #666;
+    cursor: grab;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.mixer-slider::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    background: linear-gradient(to bottom, #fff 0%, #c0c0c0 50%, #fff 100%);
+}
+
+/* Firefox thumb (horizontal) */
+.mixer-slider::-moz-range-thumb {
+    width: 16px;
+    height: 24px;
+    border-radius: 3px;
+    background: linear-gradient(to bottom, #f0f0f0 0%, #afafaf 50%, #f0f0f0 100%);
+    border: 1px solid #666;
+    cursor: grab;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.mixer-slider::-moz-range-thumb:active {
+    cursor: grabbing;
+    background: linear-gradient(to bottom, #fff 0%, #c0c0c0 50%, #fff 100%);
+}
+

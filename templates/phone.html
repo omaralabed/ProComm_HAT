@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ProComm Phone">
+  <meta name="theme-color" content="#1c1c1e">
+  <title>ProComm Phone</title>
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="stylesheet" href="/static/css/phone.css?v=20260508q">
+  <style>
+    html,body{background:#111111;margin:0;padding:0;}
+    *{box-sizing:border-box;}
+  </style>
+</head>
+<body>
+
+<!-- ── Status bar ──────────────────────────────────────────────── -->
+<div id="status-bar">
+  <span id="status-dot" class="dot dot-connecting"></span>
+  <span id="status-text">Connecting…</span>
+  <span id="line-badge" class="line-badge hidden">Line <span id="line-num">—</span></span>
+</div>
+
+<!-- ── Number display ──────────────────────────────────────────── -->
+<div id="number-display-wrap">
+  <div id="number-display">
+    <span id="number-text" class="placeholder">Enter number</span>
+    <div id="number-actions">
+      <!-- Call history -->
+      <button id="btn-history" class="action-btn" title="Call history">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 8v4l3 3"/>
+          <circle cx="12" cy="12" r="9"/>
+        </svg>
+      </button>
+      <!-- Paste -->
+      <button id="btn-paste" class="action-btn" title="Paste number">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="2" width="6" height="4" rx="1"/>
+          <path d="M17 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+        </svg>
+      </button>
+      <!-- Contact picker — shown only on supporting browsers -->
+      <button id="btn-contacts" class="action-btn hidden" title="Pick contact">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+          <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </button>
+      <!-- Clear all -->
+      <button id="btn-clear" class="action-btn" title="Clear">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="15" y1="9" x2="9" y2="15"/>
+          <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+      </button>
+      <!-- Backspace -->
+      <button id="btn-back" class="action-btn" title="Backspace">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/>
+          <line x1="18" y1="9" x2="13" y2="14"/>
+          <line x1="13" y1="9" x2="18" y2="14"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Dialpad ──────────────────────────────────────────────────── -->
+<div id="dialpad">
+  <button class="key" data-digit="1"><span class="key-main">1</span><span class="key-sub"> </span></button>
+  <button class="key" data-digit="2"><span class="key-main">2</span><span class="key-sub">ABC</span></button>
+  <button class="key" data-digit="3"><span class="key-main">3</span><span class="key-sub">DEF</span></button>
+  <button class="key" data-digit="4"><span class="key-main">4</span><span class="key-sub">GHI</span></button>
+  <button class="key" data-digit="5"><span class="key-main">5</span><span class="key-sub">JKL</span></button>
+  <button class="key" data-digit="6"><span class="key-main">6</span><span class="key-sub">MNO</span></button>
+  <button class="key" data-digit="7"><span class="key-main">7</span><span class="key-sub">PQRS</span></button>
+  <button class="key" data-digit="8"><span class="key-main">8</span><span class="key-sub">TUV</span></button>
+  <button class="key" data-digit="9"><span class="key-main">9</span><span class="key-sub">WXYZ</span></button>
+  <button class="key" data-digit="*"><span class="key-main">*</span><span class="key-sub"> </span></button>
+  <button class="key" data-digit="0"><span class="key-main">0</span><span class="key-sub">+</span></button>
+  <button class="key" data-digit="#"><span class="key-main">#</span><span class="key-sub"> </span></button>
+</div>
+
+<!-- ── Call controls ────────────────────────────────────────────── -->
+<div id="call-controls">
+
+  <!-- Wide in-call row: Speaker + Mute (hidden at idle, shown in-call) -->
+  <div id="incall-wide-row" class="hidden">
+    <button id="btn-mute" class="wide-btn" title="Mute">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+      <span>Mute</span>
+    </button>
+  </div>
+
+  <!-- Main action row: call / hangup / redial -->
+  <div id="main-btn-row">
+    <!-- CALL button (green) -->
+    <button id="btn-call" class="call-btn call-btn-green" disabled>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z"/>
+      </svg>
+    </button>
+    <!-- HANGUP button (red) — visible only in-call -->
+    <button id="btn-hangup" class="call-btn call-btn-red hidden">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1-9.4 0-17-7.6-17-17 0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1L6.6 10.8z" transform="rotate(135 12 12)"/>
+      </svg>
+    </button>
+    <!-- REDIAL button — visible when idle and last number exists -->
+    <button id="btn-redial" class="side-btn hidden" title="Redial last number">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="1 4 1 10 7 10"/>
+        <path d="M3.51 15a9 9 0 1 0 .49-4.5"/>
+      </svg>
+    </button>
+  </div>
+
+</div>
+
+<!-- ── In-call overlay ───────────────────────────────────────────── -->
+<div id="incall-overlay" class="hidden">
+  <div id="incall-number"></div>
+  <div id="incall-timer">00:00</div>
+</div>
+
+<!-- ── Toast ────────────────────────────────────────────────────── -->
+<div id="toast" class="hidden"></div>
+
+<!-- ── Idle timeout overlay ──────────────────────────────────────── -->
+<div id="idle-overlay" class="hidden">
+  <p id="idle-message">Still there?</p>
+  <span id="idle-countdown">30</span>
+  <button id="btn-idle-dismiss">Stay Connected</button>
+</div>
+
+<!-- ── Call history panel ─────────────────────────────────────────── -->
+<div id="history-backdrop" class="hidden"></div>
+<div id="history-panel" class="hidden">
+  <div id="history-header">
+    <span>Recent Calls</span>
+    <button id="btn-history-close" class="icon-btn" title="Close">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </button>
+  </div>
+  <div id="history-list"></div>
+  <button id="btn-history-clear-all">Clear All</button>
+</div>
+
+
+<!-- Hidden tel input for iOS contact picker -->
+<input type="tel" id="tel-contact-input" style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;top:-100px;left:-100px;">
+
+<script src="/static/js/socket.io.min.js"></script>
+<script src="/static/js/phone.js?v=20260508q"></script>
+</body>
+</html>

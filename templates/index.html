@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>ProComm</title>
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+    <link rel="alternate icon" type="image/png" href="/static/favicon.png">
+    <!-- Socket.IO Client Library (local copy for offline use) -->
+    <script src="/static/js/socket.io.min.js?v=20260511"></script>
+    <link rel="stylesheet" href="/static/css/index.css?v=20260511">
+    <style>
+        /* Critical fallback — prevents fully unstyled page if CSS file is blocked/cached by Safari */
+        body { margin:0; background:#0f0f0f; color:#e2e8f0; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; overflow-x:hidden; }
+        .settings-dropdown { max-height:0; overflow:hidden; opacity:0; }
+        .settings-dropdown.open { max-height:5000px; opacity:1; overflow:visible; }
+        @media (pointer:coarse) and (max-width:768px) {
+            /* Hide the QR card on phones — the operator already scanned it to get here */
+            .qr-card { display:none !important; }
+            /* Bigger tap target for the headset button only — finger-friendly listen toggle */
+            .headset-toggle { min-width:52px !important; min-height:52px !important; padding:10px !important; }
+            /* Hide SIP Settings subsection — SIP config is touchscreen-only */
+            #settings-sub-sip { display:none !important; }
+            /* Hide Quick Dial Prefixes subsection — prefix config is touchscreen / desktop only */
+            #settings-sub-prefixes { display:none !important; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-content">
+            <h1>ProComm</h1>
+            <div class="system-status">
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span id="system-status">System Online</span>
+                </div>
+                <div class="status-indicator sip-indicator" title="SIP Registration" style="display: none;">
+                    <div class="status-dot" id="sip-dot"></div>
+                    <span id="sip-pill-text">SIP 0/8</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Left Column: Phone Lines + Audio Test -->
+        <div class="lines-column">
+            <!-- Phone Lines -->
+            <div class="lines-container" id="lines-container"></div>
+
+            <!-- Audio Test (below keypads) -->
+            <div class="settings-section settings-card">
+                <div class="section-head">
+                    <div class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="28" height="28"><path d="M55 12c-16 0-28 13-28 29 0 6 2 11 4 15l-3 8c-1 2 0 4 1 5l5 4c3 2 6 6 6 10v3c0 2 2 4 4 4s4-2 4-4v-3c0-2-1-5-2-7" fill="none" stroke="#1e5fa6" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="M55 24c-9 0-16 8-16 17s7 17 16 17" fill="none" stroke="#1e5fa6" stroke-width="5" stroke-linecap="round"/><path d="M55 34c-4 0-7 3-7 7s3 7 7 7" fill="none" stroke="#1e5fa6" stroke-width="4.5" stroke-linecap="round"/><polyline points="2,50 10,50 16,38 22,62 28,42 34,58 40,46 46,54 52,50 96,50" fill="none" stroke="#1e5fa6" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <div>
+                        <div class="section-title">Audio Test</div>
+                        <div class="section-subtitle">Choose an output channel, then press & hold to play a test tone.</div>
+                    </div>
+                </div>
+                <div class="settings-grid">
+                    <div class="field-row">
+                        <div class="setting-group">
+                    <label>Test Channel</label>
+                    <div class="custom-dropdown" id="test-channel-dropdown">
+                        <div class="custom-dropdown-selected" onclick="toggleTestDropdown()">
+                            <span id="test-channel-selected">Select Channel...</span>
+                            <span class="custom-dropdown-arrow">▼</span>
+                        </div>
+                        <div class="custom-dropdown-list" id="test-channel-list">
+                            <div class="custom-dropdown-option" onclick="selectTestChannel(0)">Select Channel...</div>
+                            <div class="custom-dropdown-option" onclick="selectTestChannel(1)">Channel 1</div>
+                            <div class="custom-dropdown-option" onclick="selectTestChannel(2)">Channel 2</div>
+                            <div class="custom-dropdown-option" onclick="selectTestChannel(3)">Channel 3</div>
+                            <div class="custom-dropdown-option" onclick="selectTestChannel(4)">Channel 4</div>
+                            <div class="custom-dropdown-option" onclick="selectTestChannel(5)">Channel 5</div>
+                            <div class="custom-dropdown-option" onclick="selectTestChannel(6)">Channel 6</div>
+                            <div class="custom-dropdown-option" onclick="selectTestChannel(7)">Channel 7</div>
+                            <div class="custom-dropdown-option" onclick="selectTestChannel(8)">Channel 8</div>
+                        </div>
+                    </div>
+                </div>
+                    </div>
+                    <div class="test-controls">
+                        <button class="test-btn test-btn-hold"
+                                id="hold-test-btn"
+                                onpointerdown="startTest()"
+                                onpointerup="stopTest()"
+                                onpointerleave="stopTest()"
+                                onpointercancel="stopTest()">
+                            Hold to Test
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Panel (right sidebar) -->
+        <div class="settings-panel">
+            
+            <!-- ═══════════════ Audio Mixer ═══════════════ -->
+            <div class="settings-section settings-card">
+                <button class="settings-toggle-btn" onclick="toggleMixerDropdown()">
+                    <span>🎚️ Audio Levels</span>
+                    <span class="settings-arrow" id="mixer-arrow">▼</span>
+                </button>
+                <div class="mixer-dropdown" id="mixer-dropdown" style="display: none;">
+                    <!-- Row 1: Channels 1-4 -->
+                    <div class="mixer-row">
+                        {% for ch in range(1, 5) %}
+                        <div class="mixer-strip" id="mixer-ch-{{ ch }}">
+                            <div class="mixer-ch-label">CH {{ ch }}</div>
+                            <div class="mixer-faders">
+                                <div class="mixer-fader">
+                                    <span class="mixer-value" id="mixer-input-val-{{ ch }}">85</span>
+                                    <div class="mixer-slider-wrap">
+                                        <input type="range" min="0" max="100" value="85"
+                                               class="mixer-slider mixer-input"
+                                               id="mixer-input-{{ ch }}"
+                                               data-channel="{{ ch }}" data-type="input"
+                                               oninput="onMixerChange(this)">
+                                    </div>
+                                    <label class="mixer-fader-label">IN</label>
+                                </div>
+                                <div class="mixer-fader">
+                                    <span class="mixer-value" id="mixer-output-val-{{ ch }}">85</span>
+                                    <div class="mixer-slider-wrap">
+                                        <input type="range" min="0" max="100" value="85"
+                                               class="mixer-slider mixer-output"
+                                               id="mixer-output-{{ ch }}"
+                                               data-channel="{{ ch }}" data-type="output"
+                                               oninput="onMixerChange(this)">
+                                    </div>
+                                    <label class="mixer-fader-label">OUT</label>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <!-- Row 2: Channels 5-8 -->
+                    <div class="mixer-row">
+                        {% for ch in range(5, 9) %}
+                        <div class="mixer-strip" id="mixer-ch-{{ ch }}">
+                            <div class="mixer-ch-label">CH {{ ch }}</div>
+                            <div class="mixer-faders">
+                                <div class="mixer-fader">
+                                    <span class="mixer-value" id="mixer-input-val-{{ ch }}">85</span>
+                                    <div class="mixer-slider-wrap">
+                                        <input type="range" min="0" max="100" value="85"
+                                               class="mixer-slider mixer-input"
+                                               id="mixer-input-{{ ch }}"
+                                               data-channel="{{ ch }}" data-type="input"
+                                               oninput="onMixerChange(this)">
+                                    </div>
+                                    <label class="mixer-fader-label">IN</label>
+                                </div>
+                                <div class="mixer-fader">
+                                    <span class="mixer-value" id="mixer-output-val-{{ ch }}">85</span>
+                                    <div class="mixer-slider-wrap">
+                                        <input type="range" min="0" max="100" value="85"
+                                               class="mixer-slider mixer-output"
+                                               id="mixer-output-{{ ch }}"
+                                               data-channel="{{ ch }}" data-type="output"
+                                               oninput="onMixerChange(this)">
+                                    </div>
+                                    <label class="mixer-fader-label">OUT</label>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+
+
+            <div class="settings-section settings-card">
+                <button class="settings-toggle-btn" onclick="toggleSettingsDropdown()">
+                    <span>⚙ Settings</span>
+                    <span class="settings-arrow" id="settings-arrow">▼</span>
+                </button>
+<div class="settings-dropdown" id="settings-dropdown" style="display: none;">
+                    <div class="settings-subsection" id="settings-sub-net">
+                        <button class="settings-subheader" type="button" onclick="toggleSettingsSub('settings-sub-net')">
+                            <span class="settings-subtitle-text">🌐 Network Configuration</span>
+                            <span class="settings-subcaret">▾</span>
+                        </button>
+                        <div class="settings-subbody">
+<!-- Single Toggle Switch -->
+                        <div class="network-mode-label" style="font-weight:600; margin-bottom:8px;">🌐 eth0 — SIP Server</div>
+                        <div class="network-mode-toggle">
+                            <span class="network-mode-label" id="dhcp-label">DHCP</span>
+                            <label class="switch">
+                                <input type="checkbox" id="network-mode-switch" onchange="requestNetworkModeChange()">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="network-mode-label" id="manual-label">Manual</span>
+                        </div>
+                        
+                        <!-- DHCP Mode - Show current IP from network -->
+                        
+                        <div id="dhcp-info" class="network-config-section">
+                            <div class="network-info">
+                                <div class="network-info-grid">
+                                    <div class="info-label">IP Address</div>
+                                    <div class="info-value" id="dhcp-ip-address">192.168.1.100</div>
+
+                                    <div class="info-label">Subnet Mask</div>
+                                    <div class="info-value" id="dhcp-subnet">255.255.255.0</div>
+
+                                    <div class="info-label">Gateway</div>
+                                    <div class="info-value" id="dhcp-gateway">192.168.1.1</div>
+
+                                    <div class="info-label">Status</div>
+                                    <div class="info-value" id="eth0-status">—</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Manual Mode - Input fields for static IP -->
+                        <div id="manual-info" class="network-config-section" style="display: none;">
+                            <div class="setting-group">
+                                <label>IP Address</label>
+                                <input type="text"
+                                       id="manual-ip"
+                                       placeholder="192.168.1.100"
+                                       readonly
+                                       onclick="showVirtualKeyboard('manual-ip')">
+                            </div>
+                            <div class="setting-group">
+                                <label>Subnet Mask</label>
+                                <input type="text"
+                                       id="manual-subnet"
+                                       placeholder="255.255.255.0"
+                                       readonly
+                                       onclick="showVirtualKeyboard('manual-subnet')">
+                            </div>
+                            <div class="setting-group">
+                                <label>Gateway</label>
+                                <input type="text"
+                                       id="manual-gateway"
+                                       placeholder="192.168.1.1"
+                                       readonly
+                                       onclick="showVirtualKeyboard('manual-gateway')">
+                            </div>
+                            <button class="btn-apply-network" onclick="requestManualNetworkSave()">
+                                Save & Apply
+                            </button>
+                        </div>
+
+                        <!-- eth1 section (hidden - no secondary NIC) -->
+                        <div id="net-eth1-section" style="display:none;">
+                            <div class="settings-subdivider" style="margin: 14px 0;"></div>
+                            <div class="network-mode-label" style="font-weight:600; margin-bottom:8px;">🎛 eth1 — Secondary Network</div>
+                            <div class="network-mode-toggle">
+                                <span class="network-mode-label active" id="eth1-dhcp-label">DHCP</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="eth1-mode-switch" onchange="eth1ModeChange()">
+                                    <span class="slider"></span>
+                                </label>
+                                <span class="network-mode-label" id="eth1-manual-label">Static</span>
+                            </div>
+                            <div id="eth1-dhcp-info" class="network-config-section">
+                                <div class="network-info-grid">
+                                    <div class="info-label">IP Address</div>
+                                    <div class="info-value" id="eth1-dhcp-ip">—</div>
+                                    <div class="info-label">Subnet Mask</div>
+                                    <div class="info-value" id="eth1-dhcp-subnet">—</div>
+                                    <div class="info-label">Gateway</div>
+                                    <div class="info-value" id="eth1-dhcp-gateway" style="opacity:0.6;">—</div>
+                                    <div class="info-label">Status</div>
+                                    <div class="info-value" id="eth1-status">—</div>
+                                </div>
+                            </div>
+                            <div id="eth1-static-info" class="network-config-section" style="display:none;">
+                                <div class="setting-group">
+                                    <label>IP Address</label>
+                                    <input type="text" id="eth1-ip" placeholder="169.254.x.x" readonly onclick="showVirtualKeyboard('eth1-ip')">
+                                </div>
+                                <div class="setting-group">
+                                    <label>Subnet Mask</label>
+                                    <input type="text" id="eth1-subnet" placeholder="255.255.0.0" readonly onclick="showVirtualKeyboard('eth1-subnet')">
+                                </div>
+                                <button class="btn-apply-network" onclick="applyEth1Static()">Apply (no reboot)</button>
+                            </div>
+                        </div>
+
+                        </div>
+                    </div>
+
+                    <div class="settings-subdivider"></div>
+
+                    <div class="settings-subsection" id="settings-sub-dir">
+                        <button class="settings-subheader" type="button" onclick="toggleSettingsSub('settings-sub-dir')">
+                            <span class="settings-subtitle-text">📇 Phone Directory</span>
+                            <span class="settings-subcaret">▾</span>
+                        </button>
+                        <div class="settings-subbody">
+                <div class="dir-tabs" role="tablist" aria-label="Phone Directory Tabs">
+                    <div class="dir-tab active" id="dir-tab-ifb" role="tab" aria-selected="true" onclick="setDirectoryTab('IFB')">IFB</div>
+                    <div class="dir-tab" id="dir-tab-pl" role="tab" aria-selected="false" onclick="setDirectoryTab('PL')">PL</div>
+                </div>
+
+                <div class="dir-toolbar">
+                    <input class="dir-search" id="dir-search" type="text" placeholder="Search group, name, or number…" oninput="renderPhoneDirectory()">
+                    <button class="dir-btn primary" onclick="openAddGroup()">+ Group</button>
+                </div>
+
+                <div class="dir-groups" id="dir-groups"></div>
+
+                <div class="section-subtitle" style="margin-top: 12px; color: rgba(148,163,184,0.85);">
+                    Tip: Tap ✎ to rename groups or branches. All edits are saved locally on this device.
+                </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-subdivider"></div>
+
+                    <div class="settings-subsection" id="settings-sub-prefixes">
+                        <button class="settings-subheader" type="button" onclick="toggleSettingsSub('settings-sub-prefixes')">
+                            <span class="settings-subtitle-text">⚡ Quick Dial Prefixes</span>
+                            <span class="settings-subcaret">▾</span>
+                        </button>
+                        <div class="settings-subbody">
+                            <div class="section-subtitle" style="margin-bottom:14px;">Saved dial prefixes for the line keypad. Mark one as default to show it as a button below the dialpad.</div>
+                            <div class="dir-toolbar">
+                                <button class="dir-btn primary" onclick="openAddPrefix()">+ Add Prefix</button>
+                            </div>
+                            <div id="prefix-list" style="margin-top:10px;"></div>
+                            <div class="section-subtitle" style="margin-top: 12px; color: rgba(148,163,184,0.85);">
+                                Tip: tap a prefix's "Default" radio to show it on the keypad. Tap it again to clear and hide the keypad button.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-subdivider"></div>
+
+                    <div class="settings-subsection" id="settings-sub-sip">
+                        <button class="settings-subheader" type="button" onclick="toggleSettingsSub('settings-sub-sip')">
+                            <span class="settings-subtitle-text">📞 SIP Settings</span>
+                            <span class="settings-subcaret">▾</span>
+                        </button>
+                        <div class="settings-subbody">
+                            <div class="section-head">
+                                <div class="section-icon">📞</div>
+                                <div>
+                                    <div class="section-title"></div>
+                                    <div class="section-subtitle">Configure SIP server, credentials, and caller ID for the SIP engine. Restart required after saving.</div>
+                                </div>
+                            </div>
+                            <div style="margin-top: 20px;">
+                                <a href="#" onclick="showSipAuthWarning(event)" class="dir-btn" style="display: block; text-align: center; text-decoration: none; color: white;">Open SIP Settings</a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="settings-subdivider"></div>
+
+                    <div class="settings-subsection" id="settings-sub-audio-hw">
+                        <button class="settings-subheader" type="button" onclick="toggleSettingsSub('settings-sub-audio-hw')">
+                            <span class="settings-subtitle-text">🎙️ Audio Hardware</span>
+                            <span class="settings-subcaret">▾</span>
+                        </button>
+                        <div class="settings-subbody">
+                            <div class="section-subtitle" style="margin-bottom:14px;">USB audio dongle status. If a channel shows red, press <strong>Re-apply Names</strong> to fix it without rebooting.</div>
+                            <div id="audio-hw-list" style="display:flex; flex-direction:column; gap:6px; margin-bottom:14px;">
+                                <div style="color:rgba(148,163,184,0.6); font-size:0.85em;">Loading…</div>
+                            </div>
+                            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                <button class="dir-btn primary" onclick="audioHwFixNames()" id="audio-hw-fix-btn" style="flex:1; min-width:140px;">🔄 Re-apply Names</button>
+                                <button class="dir-btn" onclick="loadAudioHwStatus()" style="flex:1; min-width:100px;">↻ Refresh</button>
+                            </div>
+                            <div id="audio-hw-msg" style="margin-top:10px; font-size:0.85em; min-height:18px;"></div>
+                        </div>
+                    </div>
+
+                    <div class="settings-subdivider"></div>
+
+                    <div class="settings-subsection" id="settings-sub-system">
+                        <button class="settings-subheader" type="button" onclick="toggleSettingsSub('settings-sub-system')">
+                            <span class="settings-subtitle-text">⚡ System</span>
+                            <span class="settings-subcaret">▾</span>
+                        </button>
+                        <div class="settings-subbody">
+                            <div class="section-head">
+                                <div class="section-icon">⚡</div>
+                                <div>
+                                    <div class="section-title">System Control</div>
+                                    <div class="section-subtitle">Reboot the system to apply changes or troubleshoot issues.</div>
+                                </div>
+                            </div>
+
+                            <div style="margin-top: 20px;">
+                                <button class="dir-btn" onclick="requestSystemReboot()" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; font-weight: 600; padding: 12px 24px; width: 100%;">
+                                    🔄 Reboot System
+                                </button>
+                                <div class="section-subtitle" style="margin-top: 12px; color: rgba(148,163,184,0.85);">
+                                    ⚠️ Warning: All active calls will be disconnected. The system will be unavailable for about 30 seconds.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <!-- SIP Status (moved below settings) -->
+    <div class="settings-section settings-card sip-status-card" style="margin: 20px auto; max-width: 800px;">
+        <div class="section-head">
+            <div class="section-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="28" height="28"><path d="M80 45c0-16.6-13.4-30-30-30-14 0-25.8 9.6-29.1 22.6C11.5 39.4 5 47 5 56c0 11 9 20 20 20h50c11 0 20-9 20-20 0-9-6-16.6-15-19z" fill="none" stroke="#1b5e8a" stroke-width="6" stroke-linejoin="round"/><text x="50" y="62" text-anchor="middle" font-family="Arial,sans-serif" font-weight="bold" font-size="24" fill="#4caf50">SIP</text><line x1="58" y1="42" x2="58" y2="30" stroke="#4caf50" stroke-width="3.5" stroke-linecap="round"/><polygon points="58,26 54,33 62,33" fill="#4caf50"/><line x1="50" y1="76" x2="50" y2="90" stroke="#1b5e8a" stroke-width="3.5" stroke-linecap="round"/><polygon points="50,94 46,87 54,87" fill="#1b5e8a"/></svg></div>
+            <div>
+                <div class="section-title">ProComm Status</div>
+                <div class="section-subtitle" id="sip-mode">Outgoing Only</div>
+            </div>
+        </div>
+
+        <div class="sip-status-box">
+            <div class="sip-row">
+                <div class="sip-label">Server:</div>
+                <div class="sip-value" id="sip-server">—</div>
+            </div>
+            <div class="sip-row" style="display: none;">
+                <div class="sip-label">Lines Registered:</div>
+                <div class="sip-value sip-strong" id="sip-lines">0 / 8</div>
+            </div>
+            
+            <!-- About Info -->
+            <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 12px; padding-top: 12px;">
+                <div class="sip-row">
+                    <div class="sip-label">Product:</div>
+                    <div class="sip-value">ProComm / SIP Engine</div>
+                </div>
+                <div class="sip-row">
+                    <div class="sip-label">Model:</div>
+                    <div class="sip-value">ProComm-8L</div>
+                </div>
+                <div class="sip-row">
+                    <div class="sip-label">Version:</div>
+                    <div class="sip-value">1.0.0</div>
+                </div>
+                <div class="sip-row">
+                    <div class="sip-label">Serial:</div>
+                    <div class="sip-value" id="device-serial">—</div>
+                </div>
+            </div>
+            
+            <!-- System Status -->
+            <div style="border-top: 1px solid rgba(255,255,255,0.1); margin-top: 12px; padding-top: 12px;">
+                <div class="sip-row">
+                    <div class="sip-label">Temperature:</div>
+                    <div class="sip-value" id="pi-temperature">—</div>
+                </div>
+                <div class="sip-row">
+                    <div class="sip-label">CPU Usage:</div>
+                    <div class="sip-value" id="pi-cpu">—</div>
+                </div>
+                <div class="sip-row">
+                    <div class="sip-label">Memory:</div>
+                    <div class="sip-value" id="pi-memory">—</div>
+                </div>
+                <div class="sip-row">
+                    <div class="sip-label">Uptime:</div>
+                    <div class="sip-value" id="pi-uptime">—</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Code Card (below SIP Status) -->
+    <div class="settings-section settings-card qr-card" style="margin: 0 auto 20px auto; max-width: 800px;">
+        <div class="qr-card-row">
+            <!-- Left slot — Browser phone lines monitor -->
+            <div class="qr-slot qr-slot-left">
+                <div class="phone-monitor">
+                    <div class="phone-monitor-header">
+                        <span class="phone-monitor-title">Phone Lines Monitor</span>
+                        <span class="phone-monitor-count"><span id="pm-connected">0</span> / 20</span>
+                    </div>
+                    <div class="phone-monitor-grid" id="pm-grid"></div>
+                </div>
+            </div>
+            <!-- Right slot — Phone QR -->
+            <div class="qr-slot qr-slot-right">
+                <img src="/qr" alt="Phone QR" class="qr-img" id="phone-qr-img">
+                <div class="qr-caption">Scan to get a phone line on your phone</div>
+            </div>
+        </div>
+        <div class="qr-reset-row">
+            <button class="qr-reset-btn" onclick="confirmResetPhoneLines()">Reset All Phone Lines</button>
+        </div>
+    </div>
+
+    <!-- Remote UI QR Card -->
+    <div class="settings-section settings-card qr-card" style="margin: 0 auto 20px auto; max-width: 800px;">
+        <div style="text-align:center; padding: 10px 0 6px 0;">
+            <div style="color:#f39c12; font-size:1em; font-weight:700; letter-spacing:0.5px; margin-bottom:14px;">📱 Open Control Panel on Your Phone</div>
+            <img src="/qr_ui" alt="UI QR Code" class="qr-img" style="width:160px; height:160px;">
+            <div class="qr-caption" style="margin-top:10px;">Scan to open the ProComm control panel on your phone</div>
+            <div style="color:#718096; font-size:0.78em; margin-top:6px;">Phone must be on the same network</div>
+        </div>
+    </div>
+
+    <!-- IFB QR Card -->
+    <div class="settings-section settings-card qr-card" style="margin: 0 auto 20px auto; max-width: 800px;">
+        <div style="text-align:center; padding: 10px 0 6px 0;">
+            <div style="color:#22c55e; font-size:1em; font-weight:700; letter-spacing:0.5px; margin-bottom:14px;">🎧 IFB Monitor — Producer Line Listen</div>
+            <img src="/qr_ifb" alt="IFB QR Code" class="qr-img" style="width:160px; height:160px;">
+            <div class="qr-caption" style="margin-top:10px;">Scan to open the IFB monitor on your phone</div>
+            <div style="color:#718096; font-size:0.78em; margin-top:6px;">Phone must be on the same network</div>
+        </div>
+    </div>
+
+    <!-- PL QR Card -->
+    <div class="settings-section settings-card qr-card" style="margin: 0 auto 20px auto; max-width: 800px;">
+        <div style="text-align:center; padding: 10px 0 6px 0;">
+            <div style="color:#f59e0b; font-size:1em; font-weight:700; letter-spacing:0.5px; margin-bottom:14px;">🎙 Party Line (PL) — Crew Intercom</div>
+            <img src="/qr_pl" alt="PL QR Code" class="qr-img" style="width:160px; height:160px;">
+            <div class="qr-caption" style="margin-top:10px;">Scan to open the Party Line on your phone</div>
+            <div style="color:#718096; font-size:0.78em; margin-top:6px;">Phone must be on the same network</div>
+        </div>
+    </div>
+
+    <!-- Reset Result Modal -->
+    <div class="modal-overlay" id="phone-reset-result-modal" role="dialog" aria-modal="true" aria-hidden="true" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-title" id="phone-reset-result-msg">Done</div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-confirm" onclick="closeResetResultModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reset Phone Lines Confirmation Modal -->
+    <div class="modal-overlay" id="phone-reset-modal" role="dialog" aria-modal="true" aria-hidden="true" style="display:none;">
+        <div class="modal-box">
+            <div class="modal-title">Reset All Phone Lines?</div>
+            <div class="modal-message">This will disconnect all active browser phone sessions. Users will get a new line when they reopen the app. Continue?</div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" onclick="closePhoneResetModal()">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" onclick="doResetPhoneLines()">Reset</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/index.js?v=20260511"></script>
+    <!-- Virtual Keyboard -->
+    <div class="virtual-keyboard-overlay" id="vkeyboard-overlay" style="display: none;">
+        <div class="virtual-keyboard">
+            <div class="vkeyboard-header">
+                <span id="vkeyboard-title">Enter IP Address</span>
+                <button class="vkeyboard-close" onclick="closeVirtualKeyboard()">✕</button>
+            </div>
+            <div class="vkeyboard-display">
+                <input type="text" id="vkeyboard-input" readonly>
+            </div>
+            
+            <div class="vkeyboard-modebar">
+                <button class="vkey-mode-btn active" id="vkey-mode-abc" onclick="setKeyboardMode('alpha')">ABC</button>
+                <button class="vkey-mode-btn" id="vkey-mode-123" onclick="setKeyboardMode('numeric')">123</button>
+                <button class="vkey-mode-btn" id="vkey-mode-large" onclick="toggleLargeKeys()">LARGE</button>
+            </div>
+
+            <!-- Alpha Keyboard (default, uppercase) -->
+            <div class="vkeyboard-buttons alpha" id="vkeyboard-alpha">
+                <button class="vkey-btn" onclick="vkeyAlpha('q')">Q</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('w')">W</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('e')">E</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('r')">R</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('t')">T</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('y')">Y</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('u')">U</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('i')">I</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('o')">O</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('p')">P</button>
+
+                <button class="vkey-btn" onclick="vkeyAlpha('a')">A</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('s')">S</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('d')">D</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('f')">F</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('g')">G</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('h')">H</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('j')">J</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('k')">K</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('l')">L</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('m')">M</button>
+
+                <button class="vkey-btn vkey-shift vkey-span-2 active" id="vkey-shift" onclick="toggleShift()">⇧</button>
+                <button class="vkey-btn" onclick="vkeyPress('-')">-</button>
+                <button class="vkey-btn" onclick="vkeyPress(String.fromCharCode(39))">'</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('z')">Z</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('x')">X</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('c')">C</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('v')">V</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('b')">B</button>
+                <button class="vkey-btn" onclick="vkeyAlpha('n')">N</button>
+
+                <button class="vkey-btn vkey-backspace vkey-span-2" onclick="vkeyBackspace()">⌫</button>
+                <button class="vkey-btn vkey-clear vkey-span-2" onclick="vkeyClear()">Clear</button>
+                <button class="vkey-btn vkey-span-4" onclick="vkeyPress(' ')">Space</button>
+                <button class="vkey-btn vkey-done vkey-span-2" onclick="vkeyDone()">Done</button>
+            </div>
+
+            <!-- Numeric Keyboard -->
+            <div class="vkeyboard-buttons numeric" id="vkeyboard-numeric">
+                <button class="vkey-btn" onclick="vkeyPress('7')">7</button>
+                <button class="vkey-btn" onclick="vkeyPress('8')">8</button>
+                <button class="vkey-btn" onclick="vkeyPress('9')">9</button>
+                <button class="vkey-btn vkey-backspace" onclick="vkeyBackspace()">⌫</button>
+                
+                <button class="vkey-btn" onclick="vkeyPress('4')">4</button>
+                <button class="vkey-btn" onclick="vkeyPress('5')">5</button>
+                <button class="vkey-btn" onclick="vkeyPress('6')">6</button>
+                <button class="vkey-btn vkey-clear" onclick="vkeyClear()">Clear</button>
+                
+                <button class="vkey-btn" onclick="vkeyPress('1')">1</button>
+                <button class="vkey-btn" onclick="vkeyPress('2')">2</button>
+                <button class="vkey-btn" onclick="vkeyPress('3')">3</button>
+                <button class="vkey-btn vkey-dot" onclick="vkeyPress('.')">.</button>
+                
+                <button class="vkey-btn" onclick="vkeyPress('+')">+</button>
+                <button class="vkey-btn vkey-zero" onclick="vkeyPress('0')">0</button>
+                <button class="vkey-btn" onclick="vkeyPress('-')">-</button>
+                <button class="vkey-btn vkey-done" onclick="vkeyDone()">Done</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Popup Modal -->
+    <div class="modal-overlay" id="network-modal">
+        <div class="modal-box">
+            <div class="modal-title" id="modal-title">Confirm Network Change</div>
+            <div class="modal-message" id="modal-message">
+                Are you sure you want to apply these settings?
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" onclick="cancelNetworkChange()">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" id="modal-confirm-btn" onclick="confirmNetworkChange()">Save</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Custom Confirm Modal -->
+    <div class="modal-overlay" id="confirm-modal" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="modal-box">
+            <div class="modal-title" id="confirm-title">Confirm</div>
+            <div class="modal-message" id="confirm-message"></div>
+            <div class="modal-buttons">
+                <button class="modal-btn modal-btn-cancel" id="confirm-cancel-btn">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" id="confirm-ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Custom Alert Modal -->
+    <div class="modal-overlay" id="alert-modal" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="modal-box" style="max-width: 520px;">
+            <div class="modal-title" id="alert-title">Notice</div>
+            <div class="modal-message" id="alert-message"></div>
+            <div class="modal-buttons" style="grid-template-columns: 1fr;">
+                <button class="modal-btn modal-btn-confirm" id="alert-ok-btn">OK</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Phone Picker Modal (insert number into a line) -->
+    <div class="modal-overlay" id="phone-picker-modal" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="modal-box" style="max-width: 760px;">
+            <div class="modal-title" id="phone-picker-title">Select a Number</div>
+            <div class="modal-message" style="margin-bottom: 14px;">Choose from IFB or PL, then tap a contact to insert it into the selected line.</div>
+
+            <div class="dir-tabs" style="margin-top: 6px;">
+                <div class="dir-tab active" id="picker-tab-ifb" onclick="setPickerTab('IFB')">IFB</div>
+                <div class="dir-tab" id="picker-tab-pl" onclick="setPickerTab('PL')">PL</div>
+            </div>
+
+            <div class="dir-toolbar" style="grid-template-columns: 1fr;">
+                <input class="dir-search" id="picker-search" type="text" placeholder="Search name or number…" oninput="renderPickerList()">
+            </div>
+
+            <div class="picker-list" id="picker-list"></div>
+
+            <div class="modal-buttons" style="grid-template-columns: 1fr;">
+                <button class="modal-btn modal-btn-cancel" onclick="closePhonePicker()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Directory Editor Modal (rename / add) -->
+    <div class="modal-overlay" id="dir-editor-modal" role="dialog" aria-modal="true" aria-hidden="true">
+        <div class="modal-box" style="max-width: 720px;">
+            <div class="modal-title" id="dir-editor-title">Edit</div>
+            <div class="modal-message" id="dir-editor-subtitle" style="margin-bottom: 12px;"></div>
+
+            <div class="edit-form" id="dir-editor-form"></div>
+
+            <div class="modal-buttons" id="dir-editor-buttons">
+                <button class="modal-btn modal-btn-cancel" onclick="closeDirEditor()">Cancel</button>
+                <button class="modal-btn modal-btn-confirm" onclick="saveDirEditor()">Save</button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ===============================
+         Keypad Phone List (Read-only)
+         =============================== -->
+    <div id="keypad-list-overlay" class="keypad-list-overlay" aria-hidden="true">
+        <div class="keypad-list-modal" role="dialog" aria-modal="true" aria-label="Phone List">
+            <div class="keypad-list-header">
+                <div class="keypad-list-header-left">
+                    <div class="keypad-list-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="28" height="28"><rect x="25" y="8" rx="6" ry="6" width="60" height="84" fill="#7cb9e8" stroke="#2c3e50" stroke-width="4"/><rect x="18" y="22" width="12" height="5" rx="2" fill="#b87333"/><rect x="18" y="37" width="12" height="5" rx="2" fill="#b87333"/><rect x="18" y="52" width="12" height="5" rx="2" fill="#b87333"/><rect x="18" y="67" width="12" height="5" rx="2" fill="#b87333"/><path d="M62 38c0-4-3-7-7-7s-7 3-7 7 3 6 7 6 7-2 7-6z" fill="#e8a65d" stroke="#2c3e50" stroke-width="2"/><path d="M50 42c-1 1-2 3-1 4l2 3c1 1 2 1 3 0l3-3c1-1 1-2 0-3l-2-3c0-1-1-1-2 0" fill="#e8a65d" stroke="#2c3e50" stroke-width="1.5"/><line x1="42" y1="62" x2="68" y2="62" stroke="#2c3e50" stroke-width="3" stroke-linecap="round"/><line x1="42" y1="72" x2="62" y2="72" stroke="#2c3e50" stroke-width="3" stroke-linecap="round"/></svg></div>
+                    <div>
+                        <div class="keypad-list-title">Phone List</div>
+                        <div class="keypad-list-sub">Select a contact to load name & number on the keypad.</div>
+                    </div>
+                </div>
+                <button class="keypad-list-close" onclick="closeKeypadPhoneList()" aria-label="Close">×</button>
+            </div>
+
+            <div class="keypad-list-body">
+                <div class="keypad-list-toprow">
+                    <div class="kp-cat">
+                        <button class="kp-cat-btn" onclick="toggleKeypadCategoryDropdown()" type="button">
+                            <span class="kp-cat-label" id="kp-cat-selected">IFB</span>
+                            <span class="kp-cat-arrow">▾</span>
+                        </button>
+                        <div class="kp-cat-list" id="kp-cat-list" role="listbox" aria-label="Category">
+                            <div class="kp-cat-opt active" role="option" onclick="selectKeypadCategory('IFB')">IFB</div>
+                            <div class="kp-cat-opt" role="option" onclick="selectKeypadCategory('PL')">PL</div>
+                        </div>
+                    </div>
+                    <div class="kp-target-pill" id="kp-target-pill">Line —</div>
+                </div>
+
+                <div id="keypad-list-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SIP Auth Warning Modal (web UI only) -->
+    <div id="sip-auth-overlay" style="display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); place-items:center; justify-content:center; align-items:center;">
+        <div style="background:linear-gradient(135deg,#1a1a2e,#16213e); border:2px solid #c0392b; border-radius:18px; padding:40px 36px; max-width:440px; width:90%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+            <div style="font-size:48px; margin-bottom:16px;">⚠️</div>
+            <div style="color:#e74c3c; font-size:1.4em; font-weight:800; margin-bottom:14px; letter-spacing:0.5px;">Unauthorized Access Prohibited</div>
+            <div style="color:#ccc; font-size:0.95em; line-height:1.6; margin-bottom:28px;">
+                This SIP configuration area contains sensitive system settings. Access is permitted for <span style="color:#f39c12; font-weight:700;">authorized personnel only</span>.<br><br>
+                If you are not authorized, exit immediately.
+            </div>
+            <div style="display:flex; gap:12px; justify-content:center;">
+                <button onclick="closeSipAuthWarning()" style="padding:12px 32px; border-radius:10px; border:1px solid #555; background:rgba(255,255,255,0.08); color:#ccc; font-size:1em; font-weight:600; cursor:pointer;">Exit</button>
+                <button onclick="proceedToSipSettings()" style="padding:12px 32px; border-radius:10px; border:none; background:linear-gradient(135deg,#c0392b,#e74c3c); color:white; font-size:1em; font-weight:700; cursor:pointer;">I Am Authorized</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function showSipAuthWarning(e) {
+        e.preventDefault();
+        // GUI loads from localhost — skip warning for GUI
+        const host = window.location.hostname;
+        if (host === 'localhost' || host === '127.0.0.1') {
+            window.location.href = '/sip-settings';
+            return;
+        }
+        const overlay = document.getElementById('sip-auth-overlay');
+        overlay.style.display = 'flex';
+    }
+    function closeSipAuthWarning() {
+        document.getElementById('sip-auth-overlay').style.display = 'none';
+    }
+    function proceedToSipSettings() {
+        window.location.href = '/sip-settings';
+    }
+    </script>
+
+    <script>
+    // ── Audio Hardware panel ──────────────────────────────────────────────
+    function loadAudioHwStatus() {
+        const list = document.getElementById('audio-hw-list');
+        list.innerHTML = '<div style="color:rgba(148,163,184,0.6);font-size:0.85em;">Loading…</div>';
+        fetch('/api/audio/status')
+            .then(r => r.json())
+            .then(data => {
+                if (data.error) { list.innerHTML = `<div style="color:#ef4444;">${data.error}</div>`; return; }
+                list.innerHTML = data.channels.map(ch => {
+                    const label = ch.channel === 'headset' ? 'Headset' : `CH ${ch.channel}`;
+                    const dot = ch.ok
+                        ? '<span style="color:#22c55e;font-size:1.1em;">●</span>'
+                        : '<span style="color:#ef4444;font-size:1.1em;">●</span>';
+                    const nameColor = ch.ok ? '#94a3b8' : '#ef4444';
+                    return `<div style="display:flex;align-items:center;gap:10px;padding:5px 8px;background:rgba(255,255,255,0.04);border-radius:7px;">
+                        ${dot}
+                        <span style="width:60px;font-weight:600;color:#e2e8f0;">${label}</span>
+                        <span style="width:52px;color:rgba(148,163,184,0.7);font-size:0.82em;">card ${ch.card}</span>
+                        <span style="color:${nameColor};font-size:0.85em;font-family:monospace;">${ch.name}</span>
+                    </div>`;
+                }).join('');
+            })
+            .catch(() => { list.innerHTML = '<div style="color:#ef4444;">Failed to load</div>'; });
+    }
+
+    function audioHwFixNames() {
+        const btn = document.getElementById('audio-hw-fix-btn');
+        const msg = document.getElementById('audio-hw-msg');
+        btn.disabled = true;
+        btn.textContent = '⏳ Applying…';
+        msg.style.color = '#94a3b8';
+        msg.textContent = 'Running udevadm trigger…';
+        fetch('/api/audio/fix-names', { method: 'POST' })
+            .then(r => r.json())
+            .then(() => {
+                msg.style.color = '#22c55e';
+                msg.textContent = '✓ Done — refreshing…';
+                loadAudioHwStatus();
+            })
+            .catch(() => {
+                msg.style.color = '#ef4444';
+                msg.textContent = '✗ Command failed';
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.textContent = '🔄 Re-apply Names';
+            });
+    }
+
+    // Auto-load when the subsection is opened
+    const _audioHwBtn = document.querySelector('#settings-sub-audio-hw .settings-subheader');
+    if (_audioHwBtn) {
+        _audioHwBtn.addEventListener('click', function() {
+            // Small delay so the body has expanded before we populate it
+            setTimeout(loadAudioHwStatus, 150);
+        });
+    }
+    </script>
+
+    <!-- Boot Notice Modal -->
+    <div id="boot-notice-overlay" style="display:none; position:fixed; inset:0; z-index:99997; background:rgba(0,0,0,0.82); backdrop-filter:blur(6px); align-items:center; justify-content:center;">
+        <div style="background:linear-gradient(135deg,#1a1a2e,#16213e); border:2px solid #f39c12; border-radius:18px; padding:40px 36px; max-width:480px; width:92%; box-shadow:0 20px 60px rgba(0,0,0,0.7); text-align:center;">
+            <div style="font-size:44px; margin-bottom:16px;">⚠️</div>
+            <div style="color:#f39c12; font-size:1.25em; font-weight:800; margin-bottom:20px;">System Starting Up</div>
+            <div style="color:#e2e8f0; font-size:1em; line-height:1.8; margin-bottom:32px;">
+                The system may display "online" before it is fully ready.<br>
+                Please wait an additional <strong style="color:#f39c12;">25 seconds</strong> before proceeding.<br>
+                Interrupting the process may cause dialing issues.
+            </div>
+            <button onclick="document.getElementById('boot-notice-overlay').style.display='none'" style="padding:13px 56px; border-radius:10px; border:none; background:linear-gradient(135deg,#f39c12,#e67e22); color:#1a1a2e; font-size:1.05em; font-weight:800; cursor:pointer; letter-spacing:0.5px;">OK</button>
+        </div>
+    </div>
+    <script>
+        // Check if system just booted - show modal once per client per boot session
+        fetch('/api/boot/check')
+            .then(res => res.json())
+            .then(data => {
+                const bootTimestamp = data.boot_timestamp;
+                const lastSeenBoot = localStorage.getItem('last_seen_boot');
+                if (!lastSeenBoot || parseFloat(lastSeenBoot) < bootTimestamp) {
+                    document.getElementById('boot-notice-overlay').style.display = 'flex';
+                    localStorage.setItem('last_seen_boot', bootTimestamp.toString());
+                }
+            })
+            .catch(err => console.error('Boot check error:', err));
+    </script>
+
+    <script>
+    // ── Phone Lines Reset ─────────────────────────────────────────────────
+    function showResetResultModal(msg) {
+        document.getElementById('phone-reset-result-msg').textContent = msg;
+        const m = document.getElementById('phone-reset-result-modal');
+        m.style.display = 'flex';
+        m.setAttribute('aria-hidden', 'false');
+    }
+    function closeResetResultModal() {
+        const m = document.getElementById('phone-reset-result-modal');
+        m.style.display = 'none';
+        m.setAttribute('aria-hidden', 'true');
+    }
+    function confirmResetPhoneLines() {
+        const modal = document.getElementById('phone-reset-modal');
+        modal.style.display = 'flex';
+        modal.setAttribute('aria-hidden', 'false');
+    }
+    function closePhoneResetModal() {
+        const modal = document.getElementById('phone-reset-modal');
+        modal.style.display = 'none';
+        modal.setAttribute('aria-hidden', 'true');
+    }
+    function doResetPhoneLines() {
+        closePhoneResetModal();
+        fetch('/api/phone/reset', { method: 'POST' })
+            .then(r => r.json())
+            .then(d => {
+                if (d.ok) {
+                    showResetResultModal(`Done — ${d.cleared} phone line(s) cleared.`);
+                } else {
+                    alert('Reset failed: ' + (d.error || 'unknown error'));
+                }
+            })
+            .catch(() => alert('Reset request failed — check connection.'));
+    }
+    </script>
+
+    <!-- ── Phone Audio Monitor (WebRTC listen-only, mobile browsers only) ── -->
+    <script>
+    (function() {
+        // Only activate on mobile browsers — desktop uses USB dongle headset
+        if (!/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) return;
+
+        let _pc = null;           // RTCPeerConnection
+        let _monitorLine = null;  // line currently being monitored
+        let _audioUnlocked = false;
+        let _awaitingRetry = false;  // true if autoplay was blocked, waiting for re-tap
+        let _micStream = null;    // getUserMedia stream (captured during user gesture)
+
+        // Single persistent <audio> element — must be in DOM for iOS to play
+        const _audioEl = document.createElement('audio');
+        _audioEl.setAttribute('playsinline', '');
+        _audioEl.setAttribute('autoplay', '');
+        _audioEl.style.display = 'none';
+        document.body.appendChild(_audioEl);
+
+        function _setHeadsetStatus(lineId, status) {
+            // status: 'connecting' | 'listening' | 'stopped' | 'error'
+            const btn = document.querySelector(`#line-${lineId} .headset-toggle`);
+            if (!btn) return;
+            // Remove any existing badge
+            const old = btn.parentElement.querySelector('.mobile-monitor-badge');
+            if (old) old.remove();
+
+            const badge = document.createElement('div');
+            badge.className = 'mobile-monitor-badge';
+            if (status === 'connecting') {
+                badge.textContent = '⏳ Connecting…';
+                badge.style.cssText = 'font-size:11px;color:#f39c12;margin-top:4px;text-align:center;';
+                btn.style.opacity = '0.6';
+            } else if (status === 'listening') {
+                badge.textContent = '🟢 Talk + Listen';
+                badge.style.cssText = 'font-size:11px;color:#22c55e;margin-top:4px;text-align:center;';
+                btn.style.opacity = '1';
+            } else if (status === 'error') {
+                badge.textContent = '🔴 Tap to retry';
+                badge.style.cssText = 'font-size:11px;color:#ef4444;margin-top:4px;text-align:center;';
+                btn.style.opacity = '1';
+            } else {
+                btn.style.opacity = '1';
+                return; // no badge for stopped
+            }
+            btn.parentElement.appendChild(badge);
+        }
+
+        async function _startMonitor(lineId) {
+            await _stopMonitor();
+            _monitorLine = lineId;
+            _setHeadsetStatus(lineId, 'connecting');
+
+            _pc = new RTCPeerConnection({ iceServers: [] });
+
+            // ontrack fires from network event — attach stream now,
+            // actual play() was already called inside the user-gesture (toggleMute)
+            _pc.ontrack = function(e) {
+                _audioEl.srcObject = e.streams[0];
+                _audioEl.play().then(() => {
+                    _awaitingRetry = false;
+                    _setHeadsetStatus(lineId, 'listening');
+                }).catch(() => {
+                    // Autoplay blocked — set flag so next tap retries play() instead of teardown
+                    _awaitingRetry = true;
+                    _setHeadsetStatus(lineId, 'error');
+                });
+            };
+
+            _pc.onicecandidate = function(e) {
+                if (e.candidate) {
+                    window.socket.emit('headset_ice_candidate', { candidate: e.candidate });
+                }
+            };
+
+            // Unlock audio element inside user gesture (iOS requirement)
+            if (!_audioUnlocked) {
+                _audioEl.play().catch(() => {});
+                _audioUnlocked = true;
+            }
+
+            // Request mic NOW — must be inside user gesture for iOS Safari to show permission prompt
+            _micStream = null;
+            try {
+                _micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            } catch (micErr) {
+                console.warn('Headset mic unavailable:', micErr);
+            }
+
+            window.socket.emit('headset_subscribe', { line: lineId });
+        }
+
+        async function _stopMonitor() {
+            _awaitingRetry = false;
+            if (_micStream) {
+                _micStream.getTracks().forEach(t => t.stop());
+                _micStream = null;
+            }
+            if (_pc) {
+                _pc.close();
+                _pc = null;
+            }
+            if (_monitorLine !== null) {
+                _setHeadsetStatus(_monitorLine, 'stopped');
+                window.socket.emit('headset_unsubscribe', {});
+                _monitorLine = null;
+            }
+            _audioEl.srcObject = null;
+        }
+
+        // Poll until connectSipSocketIO() has run and set window.socket
+        function _waitSocket(cb) {
+            if (window.socket) { cb(); return; }
+            setTimeout(() => _waitSocket(cb), 200);
+        }
+
+        _waitSocket(function() {
+            window.socket.on('headset_offer', async function(data) {
+                if (!_pc) return;
+                await _pc.setRemoteDescription({ type: 'offer', sdp: data.sdp });
+
+                // Add mic track captured during user gesture (before createAnswer)
+                if (_micStream) {
+                    _micStream.getAudioTracks().forEach(track => _pc.addTrack(track, _micStream));
+                }
+
+                const answer = await _pc.createAnswer();
+                await _pc.setLocalDescription(answer);
+                window.socket.emit('headset_answer', { sdp: answer.sdp });
+            });
+
+            window.socket.on('headset_error', function(data) {
+                console.warn('Headset error:', data.error);
+                if (_monitorLine) _setHeadsetStatus(_monitorLine, 'error');
+                _monitorLine = null;
+                renderLines();
+            });
+        });
+
+        // Teardown on tab close or page navigation
+        window.addEventListener('beforeunload', function() { _stopMonitor(); });
+
+        // Teardown when app is backgrounded (iOS kills audio anyway)
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden && _monitorLine !== null) {
+                _stopMonitor();
+                for (let i = 1; i <= 28; i++) {
+                    if (window.lines[i]) window.lines[i].muted = true;
+                }
+                renderLines();
+            }
+        });
+
+        // Override toggleMute on mobile: use WebRTC monitor instead of USB headset
+        const _waitToggle = setInterval(function() {
+            if (typeof toggleMute !== 'undefined' && typeof window.lines !== 'undefined') {
+                clearInterval(_waitToggle);
+
+                function _clearAllHeadsets() {
+                    for (let i = 1; i <= 28; i++) {
+                        if (window.lines[i]) window.lines[i].muted = true;
+                    }
+                }
+
+                window.toggleMute = async function(lineId) {
+                    if (!window.socket) return;
+                    // If autoplay was blocked and user taps same line → retry play()
+                    if (_awaitingRetry && _monitorLine === lineId) {
+                        _awaitingRetry = false;
+                        _audioEl.play().then(() => {
+                            _setHeadsetStatus(lineId, 'listening');
+                        }).catch(() => {
+                            _awaitingRetry = true;
+                            _setHeadsetStatus(lineId, 'error');
+                        });
+                        return;
+                    }
+                    if (_monitorLine === lineId) {
+                        await _stopMonitor();
+                        _clearAllHeadsets();
+                    } else {
+                        _clearAllHeadsets();
+                        await _startMonitor(lineId);
+                        if (window.lines[lineId]) window.lines[lineId].muted = false;
+                    }
+                    renderLines();
+                };
+            }
+        }, 200);
+    })();
+    </script>
+
+</body>
+</html>

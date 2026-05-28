@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}SIP Settings{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    <div class="page-header">
+        <h1 class="page-title">SIP Settings</h1>
+        <a href="/" class="btn btn-back">← Back</a>
+    </div>
+    
+    <!-- Global Settings -->
+    <div class="settings-section">
+        <h2 class="section-title">GLOBAL SETTINGS</h2>
+        <div class="form-group">
+            <label for="sip-server">SIP Server:</label>
+            <input type="text" id="sip-server" placeholder="e.g. sip.provider.com">
+        </div>
+        <div class="form-group">
+            <label for="sip-domain">SIP Domain:</label>
+            <input type="text" id="sip-domain" placeholder="e.g. provider.com">
+        </div>
+        <div style="display: flex; gap: 15px;">
+            <div class="form-group" style="flex: 1;">
+                <label for="sip-port">Port:</label>
+                <input type="text" id="sip-port" placeholder="e.g. 5060, 5061, 4044" inputmode="numeric" pattern="[0-9]*">
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label for="caller-id">Caller ID:</label>
+                <input type="text" id="caller-id" placeholder="e.g. +12125550100">
+            </div>
+        </div>
+    </div>
+    
+    <!-- Account Credentials -->
+    <div class="settings-section">
+        <h2 class="section-title">ACCOUNT CREDENTIALS</h2>
+        <div class="form-group">
+            <label for="account-username">Username:</label>
+            <input type="text" id="account-username" placeholder="SIP Username">
+        </div>
+        <div class="form-group">
+            <label for="account-password">Password:</label>
+            <input type="password" id="account-password" placeholder="SIP Password">
+        </div>
+        <!-- Outgoing-only is always on (hidden) -->
+        <input type="checkbox" id="outgoing-only" checked style="display:none;">
+    </div>
+    
+    <!-- Info -->
+    <div class="info-text" style="margin: 10px 0; padding: 10px; background: rgba(0,212,255,0.1); border-radius: 8px; color: var(--text-muted);">
+        ℹ️ After you save, the SIP engine reloads and uses the new settings immediately. No app restart needed.
+    </div>
+    
+    <!-- Actions -->
+    <div class="form-actions">
+        <button class="btn btn-save" onclick="saveSIPSettings()">💾 Save All Settings</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+<!-- Virtual keyboard disabled for SIP settings - use physical keyboard -->
+<!-- <script src="{{ url_for('static', filename='js/keyboard.js') }}"></script> -->
+{% endblock %}

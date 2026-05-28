@@ -1,0 +1,38 @@
+# /etc/udev/rules.d/99-usb-audio-hotswap.rules
+#
+# Prevents the kernel from hard-stalling when a USB audio device is
+# hot-unplugged while ALSA has it open (which can freeze the Pi).
+#
+# What these rules do:
+#  1. USB_DISCONNECT: set latency_timer to minimum so the driver releases
+#     the device quickly instead of hanging waiting for pending I/O.
+#  2. USB_ADD: trigger an ALSA rescan via udev so the card numbering is
+#     stable for the Python reconnect watchdog.
+#
+# Install on the Pi:
+#   sudo cp config/99-usb-audio-hotswap.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules
+#   sudo udevadm trigger
+#
+# Verify it loaded:
+#   sudo udevadm test $(udevadm info -q path -n /dev/snd/pcmC3D0c) 2>&1 | grep -i latency
+
+# ── On any USB audio device disconnect ─────────────────────────────────
+# Set latency_timer to 0 ms so the USB host controller drains I/O immediately.
+ACTION=="remove", SUBSYSTEM=="sound", ATTRS{idVendor}=="*", \
+    RUN+="/bin/sh -c 'echo 0 > /sys/bus/usb/devices/%k/../latency_timer 2>/dev/null || true'"
+
+# ── On any USB audio device connect ────────────────────────────────────
+# Run udevadm trigger so ALSA rescans card indexes (keeps hw:X numbering stable).
+ACTION=="add", SUBSYSTEM=="sound", KERNEL=="card*", ATTRS{idVendor}=="*", \
+    RUN+="/bin/udevadm trigger --subsystem-match=sound"
+
+# ── Specific rule for C-Media / AB13X USB audio dongles ────────────────
+# C-Media Electronics  VID 0x0d8c  (covers CM108, CM109, CM119, AB13X family)
+# Set power/autosuspend to -1 (disabled) so the kernel never auto-suspends
+# the device between calls, which can also cause a freeze on resume.
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", \
+    ATTR{power/autosuspend}="-1"
+
+ACTION=="add", SUBSYSTEM=="usb", ATTRS{idVendor}=="0d8c", \
+    ATTR{power/control}="on"
