@@ -382,8 +382,26 @@ async function handlePlOffer(data) {
   }
 
   // Request mic access (PTT starts muted)
+  // Explicit constraints are critical on iOS Safari:
+  //   autoGainControl: false  — iOS AGC intermittently zeros the mic when SIP
+  //                             audio is playing simultaneously (the near-silence
+  //                             frames visible in the PTT diagnostics). Disabling
+  //                             AGC keeps the mic level stable during full-duplex.
+  //   noiseSuppression: false — iOS noise gate fires aggressively on a quiet PL
+  //                             line, chopping the start of every sentence.
+  //   echoCancellation: true  — Keep AEC on so the SIP audio doesn't feedback
+  //                             into the mic path.
   try {
-    plMicStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    plMicStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation:  true,
+        noiseSuppression:  false,
+        autoGainControl:   false,
+        sampleRate:        48000,
+        channelCount:      1,
+      },
+      video: false,
+    });
     plMicTrack  = plMicStream.getAudioTracks()[0];
   } catch (err) {
     console.warn('PL: mic access denied:', err);
