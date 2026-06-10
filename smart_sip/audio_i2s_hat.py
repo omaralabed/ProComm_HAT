@@ -221,6 +221,16 @@ class HATAudioManager:
         self._test_tone_thread:  Optional[threading.Thread] = None
         self._test_tone_channel: Optional[int]              = None
 
+        # ── Interview Monitor — per-channel raw-input callbacks ────────────
+        # Keyed by (ch) → { key: cb }.  key is an opaque string (e.g. sid).
+        # Called from _input_worker after resampling regardless of SIP state,
+        # so the Interview Monitor hears the jack even with no call on it.
+        # All access protected by _ch_mon_lock for thread safety.
+        self._ch_input_monitor_cbs: Dict[int, Dict[str, Callable]] = {
+            ch: {} for ch in range(1, 9)
+        }
+        self._ch_mon_lock = threading.Lock()
+
     # ── Helpers ────────────────────────────────────────────────────────────────
 
     def _rebuild_reverse_map(self):
@@ -233,6 +243,28 @@ class HATAudioManager:
     def set_level_callback(self, callback: Callable):
         """Kept for back-compat — use get_levels() instead."""
         self._level_callback = callback
+
+    # ── Interview Monitor registration ─────────────────────────────────────
+
+    def register_ch_input_monitor(self, ch: int, key: str, cb: Callable):
+        """Register a raw-input callback for Interview Monitor.
+
+        `ch`  — HAT channel 1-8
+        `key` — unique opaque key (e.g. socket session ID) used to remove later
+        `cb`  — callable(pcm_8k: bytes) called every 20 ms with 8 kHz mono PCM
+        The callback is called regardless of SIP state on the channel.
+        """
+        if ch < 1 or ch > 8:
+            return
+        with self._ch_mon_lock:
+            self._ch_input_monitor_cbs[ch][key] = cb
+        logger.info(f"Interview Monitor: + ch={ch} key={key[:8]}")
+
+    def unregister_ch_input_monitor(self, ch: int, key: str):
+        """Remove a previously registered Interview Monitor callback."""
+        with self._ch_mon_lock:
+            self._ch_input_monitor_cbs.get(ch, {}).pop(key, None)
+        logger.info(f"Interview Monitor: - ch={ch} key={key[:8]}")
 
     def get_levels(self) -> Dict[int, tuple]:
         """Return {channel: (in_db, out_db)} snapshot. Thread-safe."""
@@ -399,7 +431,12 @@ class HATAudioManager:
                 for ch in range(1, HAT_CHANNELS + 1):
                     slot = _CH_TO_SLOT.get(ch, ch - 1)
                     lines_on_ch = self._channel_to_lines.get(ch)
-                    if not lines_on_ch:
+                    # Also check if any Interview Monitor callback is registered
+                    # for this channel.  Snapshot under the lock so we hold it
+                    # for the minimum time (no audioop/numpy inside the lock).
+                    with self._ch_mon_lock:
+                        ch_mon_cbs = dict(self._ch_input_monitor_cbs.get(ch, {}))
+                    if not lines_on_ch and not ch_mon_cbs:
                         continue
 
                     # Extract channel slice as contiguous bytes (1920 bytes)
@@ -438,15 +475,24 @@ class HATAudioManager:
                     # outgoing SIP stream (which garbles the far end). Only the
                     # one monitored line's channel steps aside; the other
                     # channels keep running normally.
-                    for lid in lines_on_ch:
-                        if self._headset_listen_line == lid:
-                            continue  # headset mic has priority on this line
-                        cb = self._input_callbacks.get(lid)
-                        if cb:
-                            try:
-                                cb(rtp_audio)
-                            except Exception as e:
-                                logger.error(f"Input callback error line {lid}: {e}")
+                    if lines_on_ch:
+                        for lid in lines_on_ch:
+                            if self._headset_listen_line == lid:
+                                continue  # headset mic has priority on this line
+                            cb = self._input_callbacks.get(lid)
+                            if cb:
+                                try:
+                                    cb(rtp_audio)
+                                except Exception as e:
+                                    logger.error(f"Input callback error line {lid}: {e}")
+
+                    # ── Interview Monitor fan-out (raw HAT input per channel) ──
+                    # ch_mon_cbs was snapshotted above; iterate without the lock.
+                    for mon_cb in ch_mon_cbs.values():
+                        try:
+                            mon_cb(rtp_audio)
+                        except Exception:
+                            pass
 
             except Exception as e:
                 if self._running:

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Interview Monitor">
+  <meta name="theme-color" content="#111111">
+  <title>ProComm Interview Monitor</title>
+  <link rel="stylesheet" href="/static/css/monitor.css?v=20260610">
+</head>
+<body>
+
+<!-- ── Status bar ──────────────────────────────────────────────────────── -->
+<div id="status-bar">
+  <span id="status-dot" class="dot dot-connecting"></span>
+  <span id="status-text">Connecting…</span>
+  <span class="badge">MONITOR</span>
+</div>
+
+<!-- ── Hint text ───────────────────────────────────────────────────────── -->
+<div id="hint-text">Tap a channel to start listening · Tap again to stop</div>
+
+<!-- ── Channel grid ────────────────────────────────────────────────────── -->
+<div id="channel-grid">
+  <!-- Cards built by monitor.js -->
+</div>
+
+<!-- ── Active bar (shows how many channels are live) ──────────────────── -->
+<div id="active-bar" class="hidden">
+  <span class="pulse"></span>
+  <span id="active-bar-text">Monitoring 0 channels</span>
+  <button id="btn-stop-all">Stop All</button>
+</div>
+
+<!-- ── Toast ────────────────────────────────────────────────────────────── -->
+<div id="toast" class="hidden"></div>
+
+<script src="/static/js/socket.io.min.js"></script>
+<script src="/static/js/monitor.js?v=20260610"></script>
+</body>
+</html>

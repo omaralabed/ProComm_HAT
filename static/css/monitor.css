@@ -1,0 +1,240 @@
+/* ── Interview Monitor — mobile-first dark UI ───────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0d0d0d;
+  color: #e2e8f0;
+  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* ── Status bar ─────────────────────────────────────────────────────────── */
+#status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 10px;
+  background: #161616;
+  border-bottom: 1px solid #222;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dot-connecting { background: #f59e0b; animation: blink 1s infinite; }
+.dot-connected  { background: #22c55e; }
+.dot-error      { background: #ef4444; }
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.25; }
+}
+
+#status-text {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  flex: 1;
+}
+
+.badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+/* ── Hint text ──────────────────────────────────────────────────────────── */
+#hint-text {
+  text-align: center;
+  font-size: 0.78rem;
+  color: #4a5568;
+  padding: 10px 16px 6px;
+  letter-spacing: 0.2px;
+}
+
+/* ── Channel grid ───────────────────────────────────────────────────────── */
+#channel-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 14px 14px 100px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* ── Channel card ───────────────────────────────────────────────────────── */
+.ch-card {
+  background: #1a1a1a;
+  border: 2px solid #2a2a2a;
+  border-radius: 14px;
+  padding: 18px 14px 16px;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  min-height: 110px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.ch-card:active {
+  transform: scale(0.96);
+}
+
+/* Inactive state */
+.ch-card.state-idle {
+  border-color: #2a2a2a;
+  background: #1a1a1a;
+}
+
+/* Active / monitoring state */
+.ch-card.state-active {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.07);
+  box-shadow: 0 0 18px rgba(168, 85, 247, 0.22);
+}
+
+/* Connecting state — waiting for WebRTC answer */
+.ch-card.state-connecting {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.06);
+}
+
+/* ── Card inner elements ─────────────────────────────────────────────────── */
+.card-ch-num {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  letter-spacing: 0.3px;
+}
+
+.card-jack-label {
+  font-size: 0.68rem;
+  color: #4a5568;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.card-status {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: #4a5568;
+  margin-top: 2px;
+}
+
+.state-active  .card-status { color: #a855f7; }
+.state-connecting .card-status { color: #f59e0b; }
+
+/* Headphone icon */
+.card-icon {
+  width: 28px;
+  height: 28px;
+  color: #2a2a2a;
+  transition: color 0.18s;
+}
+.state-active     .card-icon { color: #a855f7; }
+.state-connecting .card-icon { color: #f59e0b; }
+
+/* Live pulse dot on active card */
+.card-pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #a855f7;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  animation: pulse-ring 1.4s ease infinite;
+  display: none;
+}
+.state-active .card-pulse { display: block; }
+
+@keyframes pulse-ring {
+  0%   { opacity: 1;   transform: scale(1); }
+  70%  { opacity: 0.2; transform: scale(1.8); }
+  100% { opacity: 0;   transform: scale(2.2); }
+}
+
+/* ── Active bar ─────────────────────────────────────────────────────────── */
+#active-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #1e1032;
+  border-top: 1px solid rgba(168, 85, 247, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  max-width: 480px;
+  margin: 0 auto;
+  z-index: 20;
+}
+
+#active-bar.hidden { display: none !important; }
+
+.pulse {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #a855f7;
+  flex-shrink: 0;
+  animation: blink 1s infinite;
+}
+
+#active-bar-text {
+  flex: 1;
+  font-size: 0.85rem;
+  color: #c4b5fd;
+  font-weight: 500;
+}
+
+#btn-stop-all {
+  background: rgba(168, 85, 247, 0.18);
+  border: 1px solid rgba(168, 85, 247, 0.45);
+  color: #c4b5fd;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+#btn-stop-all:active { opacity: 0.7; }
+
+/* ── Toast ──────────────────────────────────────────────────────────────── */
+#toast {
+  position: fixed;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2d2d2d;
+  color: #e2e8f0;
+  padding: 9px 18px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  pointer-events: none;
+  z-index: 99;
+  white-space: nowrap;
+  max-width: 90vw;
+  text-align: center;
+}
+#toast.hidden { display: none; }

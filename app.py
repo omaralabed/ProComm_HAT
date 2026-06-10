@@ -703,6 +703,36 @@ def pl_page():
     return render_template('pl.html')
 
 
+@app.route('/monitor')
+def monitor_page():
+    """Interview Monitor — redirect HTTP to HTTPS:5443 (required for WebRTC audio)."""
+    if request.scheme == 'http':
+        return redirect(f'https://{_get_local_ip()}:5443/monitor', code=302)
+    return render_template('monitor.html')
+
+
+@app.route('/qr_monitor')
+def qr_monitor_page():
+    """QR code image for the /monitor page — points to https://<Pi-LAN-IP>:5443/monitor"""
+    try:
+        import qrcode
+        import io
+        from flask import send_file
+        url = f'https://{_get_local_ip()}:5443/monitor'
+        qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
+                            box_size=8, border=2)
+        qr.add_data(url)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color='black', back_color='white')
+        buf = io.BytesIO()
+        img.save(buf, format='PNG')
+        buf.seek(0)
+        return send_file(buf, mimetype='image/png', max_age=0)
+    except Exception as e:
+        logger.error(f"QR Monitor generation failed: {e}")
+        return f"QR error: {e}", 500
+
+
 @app.route('/api/pl/lines')
 def api_pl_lines():
     """Return status of PL lines 29-35."""
@@ -3169,6 +3199,8 @@ def handle_phone_disconnect_browser():
     _remove_headset(request.sid)
     # Clean up any PL bridge session
     _remove_pl_bridge(request.sid)
+    # Clean up any Interview Monitor channels
+    _remove_all_ch_monitors_for_sid(request.sid)
 
 
 # ============================================================================
@@ -3199,6 +3231,145 @@ def emit_sip_status_periodically():
         except Exception as e:
             logger.error(f"Error in SIP status background task: {e}")
             traceback.print_exc()
+
+
+# ============================================================================
+# INTERVIEW MONITOR — WebRTC listen-only, raw HAT input per channel
+# ============================================================================
+# Completely separate from the existing _monitor_sessions (SIP line audio).
+# _ch_monitor_sessions: (sid, ch) → WebRTCChannelMonitor
+# Each browser session can have up to 8 simultaneous WebRTC streams (one per channel).
+_ch_monitor_sessions: dict = {}
+_ch_monitor_lock = threading.Lock()
+
+
+def _get_or_create_ch_monitor(ch: int, sid: str):
+    """Create a fresh WebRTCChannelMonitor for (sid, ch), closing any stale one."""
+    from smart_sip.audio_webrtc import WebRTCChannelMonitor
+    key = (sid, ch)
+    with _ch_monitor_lock:
+        existing = _ch_monitor_sessions.get(key)
+        if existing:
+            try:
+                existing.close()
+            except Exception:
+                pass
+        mon = WebRTCChannelMonitor(ch, socketio, sid)
+        _ch_monitor_sessions[key] = mon
+    return mon
+
+
+def _remove_ch_monitor(sid: str, ch: int):
+    """Close and remove the WebRTCChannelMonitor for (sid, ch)."""
+    key = (sid, ch)
+    with _ch_monitor_lock:
+        mon = _ch_monitor_sessions.pop(key, None)
+    if mon:
+        try:
+            mon.close()
+        except Exception:
+            pass
+    # Unregister the raw-input callback from the HAT audio manager
+    if sip_engine and hasattr(sip_engine, 'audio') and sip_engine.audio:
+        audio_mgr = sip_engine.audio
+        if hasattr(audio_mgr, 'unregister_ch_input_monitor'):
+            audio_mgr.unregister_ch_input_monitor(ch, sid)
+
+
+def _remove_all_ch_monitors_for_sid(sid: str):
+    """Close all Interview Monitor channels for a disconnected session."""
+    with _ch_monitor_lock:
+        keys = [k for k in _ch_monitor_sessions if k[0] == sid]
+        mons = {k: _ch_monitor_sessions.pop(k) for k in keys}
+    for (_, ch), mon in mons.items():
+        try:
+            mon.close()
+        except Exception:
+            pass
+        if sip_engine and hasattr(sip_engine, 'audio') and sip_engine.audio:
+            audio_mgr = sip_engine.audio
+            if hasattr(audio_mgr, 'unregister_ch_input_monitor'):
+                audio_mgr.unregister_ch_input_monitor(ch, sid)
+    if mons:
+        logger.info(f"Interview Monitor: cleaned up {len(mons)} channels for sid={sid[:8]}")
+
+
+@socketio.on('ch_monitor_subscribe')
+def handle_ch_monitor_subscribe(data):
+    """Browser requests to hear raw HAT input for a channel."""
+    try:
+        ch = int((data or {}).get('ch', 0))
+        if ch < 1 or ch > 8:
+            emit('ch_monitor_error', {'ch': ch, 'error': 'Invalid channel'})
+            return
+
+        mon = _get_or_create_ch_monitor(ch, request.sid)
+
+        # Wire HAT audio manager → WebRTC bridge for this channel
+        if sip_engine and hasattr(sip_engine, 'audio') and sip_engine.audio:
+            audio_mgr = sip_engine.audio
+            if hasattr(audio_mgr, 'register_ch_input_monitor'):
+                def _push_to_mon(pcm, _m=mon):
+                    try:
+                        _m.push_audio(pcm)
+                    except Exception:
+                        pass
+                audio_mgr.register_ch_input_monitor(ch, request.sid, _push_to_mon)
+            else:
+                logger.warning("Interview Monitor: audio_mgr has no register_ch_input_monitor")
+        else:
+            logger.warning("Interview Monitor: sip_engine.audio not ready")
+
+        mon.start()
+        logger.info(f"Interview Monitor: sid={request.sid[:8]} subscribed to CH {ch}")
+    except Exception as e:
+        logger.error(f"ch_monitor_subscribe error: {e}")
+        emit('ch_monitor_error', {'ch': (data or {}).get('ch'), 'error': str(e)})
+
+
+@socketio.on('ch_monitor_answer')
+def handle_ch_monitor_answer(data):
+    """Browser sends SDP answer for an Interview Monitor channel offer."""
+    try:
+        ch  = int((data or {}).get('ch', 0))
+        sdp = (data or {}).get('sdp')
+        if not sdp or ch < 1 or ch > 8:
+            return
+        with _ch_monitor_lock:
+            mon = _ch_monitor_sessions.get((request.sid, ch))
+        if mon:
+            mon.deliver_answer(sdp)
+    except Exception as e:
+        logger.error(f"ch_monitor_answer error: {e}")
+
+
+@socketio.on('ch_monitor_ice')
+def handle_ch_monitor_ice(data):
+    """Browser sends ICE candidate for an Interview Monitor channel."""
+    try:
+        ch   = int((data or {}).get('ch', 0))
+        cand = (data or {}).get('candidate')
+        if not cand or ch < 1 or ch > 8:
+            return
+        with _ch_monitor_lock:
+            mon = _ch_monitor_sessions.get((request.sid, ch))
+        if mon:
+            mon.add_ice_candidate(cand)
+    except Exception as e:
+        logger.debug(f"ch_monitor_ice error: {e}")
+
+
+@socketio.on('ch_monitor_stop')
+def handle_ch_monitor_stop(data):
+    """Browser stops monitoring a channel."""
+    try:
+        ch = int((data or {}).get('ch', 0))
+        if ch < 1 or ch > 8:
+            return
+        _remove_ch_monitor(request.sid, ch)
+        logger.info(f"Interview Monitor: sid={request.sid[:8]} stopped CH {ch}")
+    except Exception as e:
+        logger.debug(f"ch_monitor_stop error: {e}")
 
 
 # ============================================================================

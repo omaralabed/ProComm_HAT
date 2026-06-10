@@ -1356,3 +1356,150 @@ class WebRTCHeadsetBridge:
                         pass
         except Exception as e:
             logger.warning(f"WebRTC headset line {self.line_id}: _on_mic_frame error: {e}")
+
+
+# ── Interview Monitor — one-way HAT-input → browser (per channel) ─────────────
+
+class WebRTCChannelMonitor:
+    """
+    One-way WebRTC bridge: streams raw HAT input audio for a single channel
+    to a browser for the Interview Monitor feature.
+
+    Listen-only — no browser mic, no SIP involvement.
+    Audio arrives via push_audio() called from HATAudioManager's
+    _input_worker fan-out (registered via register_ch_input_monitor).
+
+    Uses socket events:
+        Server → browser : ch_monitor_offer   {ch, sdp}
+        Browser → server : ch_monitor_answer  {ch, sdp}
+        Browser → server : ch_monitor_ice     {ch, candidate}
+
+    One instance per (session_id, channel).
+    """
+
+    def __init__(self, ch: int, socketio, session_id: str):
+        self.ch       = ch
+        self._sio     = socketio
+        self._sid     = session_id
+        self._out_q: queue.Queue = queue.Queue(maxsize=10)  # ~200 ms
+        self._pc: Optional[RTCPeerConnection]       = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._answer_future: Optional[asyncio.Future]   = None
+        self._ice_queue: queue.Queue = queue.Queue()
+        self._closed: bool = False
+
+    # ── Public API ────────────────────────────────────────────────────────
+
+    def push_audio(self, pcm_8k: bytes):
+        """Feed 8 kHz mono PCM from HAT input → browser earpiece."""
+        try:
+            self._out_q.put_nowait(pcm_8k)
+        except queue.Full:
+            try:
+                self._out_q.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                self._out_q.put_nowait(pcm_8k)
+            except queue.Full:
+                pass
+
+    def deliver_answer(self, sdp: str):
+        """Deliver the browser's SDP answer (called from Socket.IO thread)."""
+        fut, loop = self._answer_future, self._loop
+        if loop and fut and not loop.is_closed():
+            def _resolve(f=fut, s=sdp):
+                if not f.done():
+                    f.set_result(s)
+            loop.call_soon_threadsafe(_resolve)
+
+    def add_ice_candidate(self, cand_dict: dict):
+        """Queue a browser ICE candidate (called from Socket.IO thread)."""
+        self._ice_queue.put_nowait(cand_dict)
+
+    def close(self):
+        """Shut down the WebRTC connection."""
+        self._closed = True
+        loop = self._loop
+        if loop and not loop.is_closed():
+            fut = self._answer_future
+            if fut:
+                def _cancel(f=fut):
+                    if not f.done():
+                        f.cancel()
+                loop.call_soon_threadsafe(_cancel)
+            pc = self._pc
+            if pc:
+                asyncio.run_coroutine_threadsafe(pc.close(), loop)
+
+    def start(self):
+        """Start WebRTC negotiation in a background thread."""
+        def _thread():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            self._loop = loop
+            self._answer_future = loop.create_future()
+            try:
+                loop.run_until_complete(self._run())
+            except Exception as e:
+                logger.error(f"WebRTCChannelMonitor ch={self.ch}: {e}")
+            finally:
+                loop.close()
+                logger.info(f"WebRTCChannelMonitor ch={self.ch} stopped")
+
+        threading.Thread(
+            target=_thread, daemon=True,
+            name=f"WebRTCChMon-{self.ch}-{self._sid[:6]}"
+        ).start()
+        logger.info(f"WebRTCChannelMonitor ch={self.ch} starting → {self._sid[:8]}…")
+
+    # ── Internal async ────────────────────────────────────────────────────
+
+    async def _run(self):
+        if self._closed:
+            return
+        pc = RTCPeerConnection()
+        self._pc = pc
+
+        # Outgoing: raw HAT input → browser earpiece (listen only)
+        pc.addTrack(BrowserOutputTrack(self._out_q))
+
+        @pc.on('connectionstatechange')
+        def on_conn_state():
+            logger.info(f"WebRTCChannelMonitor ch={self.ch}: state={pc.connectionState}")
+
+        # Create offer, wait for ICE gathering
+        offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        await WebRTCBridge._wait_ice_complete(pc)
+
+        # Send offer to the Interview Monitor browser
+        self._sio.emit('ch_monitor_offer', {
+            'ch':  self.ch,
+            'sdp': pc.localDescription.sdp,
+        }, to=self._sid)
+
+        # Wait for browser SDP answer
+        try:
+            sdp_answer = await asyncio.wait_for(self._answer_future, timeout=30.0)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            logger.info(f"WebRTCChannelMonitor ch={self.ch}: answer wait cancelled/timeout")
+            await pc.close()
+            return
+
+        await pc.setRemoteDescription(
+            RTCSessionDescription(sdp=sdp_answer, type='answer')
+        )
+
+        # Flush any audio that buffered during negotiation
+        while not self._out_q.empty():
+            try:
+                self._out_q.get_nowait()
+            except queue.Empty:
+                break
+
+        asyncio.ensure_future(WebRTCBridge._drain_ice(pc, self._ice_queue))
+
+        # Stay alive until the connection closes or close() is called
+        while pc.connectionState not in ('closed', 'failed') and not self._closed:
+            await asyncio.sleep(1.0)
