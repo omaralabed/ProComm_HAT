@@ -103,6 +103,25 @@ def load_or_create_ca():
     return ca_key, ca_cert
 
 
+def _get_lan_ip():
+    """Return the Pi's outbound LAN IP using the UDP connect trick.
+
+    No packet is sent — the OS just picks the right source interface.
+    Falls back to gethostbyname → 127.0.0.1 if networking is down.
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return '127.0.0.1'
+
+
 def create_server_cert(ca_key, ca_cert):
     """Generate a server certificate for this Pi, signed by the CA."""
     print("  Generating server certificate for this Pi...")
@@ -110,10 +129,7 @@ def create_server_cert(ca_key, ca_cert):
 
     # Collect hostnames and IPs for this Pi
     hostname = socket.gethostname()
-    try:
-        local_ip = socket.gethostbyname(hostname)
-    except Exception:
-        local_ip = '127.0.0.1'
+    local_ip = _get_lan_ip()   # UDP-probe — always returns real LAN IP, not 127.0.1.1
 
     san_entries = [
         x509.DNSName(hostname),
@@ -121,6 +137,7 @@ def create_server_cert(ca_key, ca_cert):
         x509.DNSName('procomm.local'),
         x509.DNSName('localhost'),
         x509.IPAddress(__import__('ipaddress').ip_address('127.0.0.1')),
+        x509.IPAddress(__import__('ipaddress').ip_address('127.0.1.1')),
     ]
     # Add LAN IP if it looks private
     try:

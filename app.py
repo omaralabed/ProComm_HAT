@@ -15,7 +15,7 @@ import re
 _re = re  # alias used in netplan helpers
 import atexit
 import traceback
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 
@@ -142,6 +142,27 @@ def signal_handler(signum, frame):
     # Don't call sys.exit() here — it corrupts Flask-SocketIO threading.
     # Let the main thread handle shutdown naturally.
     raise SystemExit(0)
+
+
+def _get_local_ip():
+    """Return the Pi's current LAN IP by probing outbound routing.
+
+    Opens a UDP socket and calls connect() — no packet is ever sent, the OS
+    just selects which interface it would use to reach 8.8.8.8, and we read
+    that IP back.  Works on any network, any IP, no mDNS required.
+    Falls back to gethostbyname → '127.0.0.1' if networking is down.
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except Exception:
+            return '127.0.0.1'
 
 
 def check_sip_server_reachable(server_ip, server_port, timeout=2):
@@ -566,12 +587,18 @@ def api_boot_check():
 
 @app.route('/qr')
 def qr_page():
-    """QR code image for the /phone page — points to <hostname>.local:5443/phone"""
+    """QR code image for the /phone page — points to https://<Pi-LAN-IP>:5443/phone
+
+    Uses the Pi's current LAN IP (not mDNS) so it works on any network regardless
+    of whether Bonjour/mDNS multicast is supported. The IP is resolved at request
+    time, so DHCP changes are reflected immediately on the next page load.
+    Safari shows a one-time "Not Private" warning → tap Show Details → Visit Website.
+    """
     try:
         import qrcode
         import io
         from flask import send_file
-        url = f'http://{socket.gethostname()}.local:5443/phone'
+        url = f'https://{_get_local_ip()}:5443/phone'
         qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
                             box_size=8, border=2)
         qr.add_data(url)
@@ -588,12 +615,12 @@ def qr_page():
 
 @app.route('/qr_ui')
 def qr_ui_page():
-    """QR code image for the main UI — points to http://<hostname>.local:5443"""
+    """QR code image for the main UI — points to https://<Pi-LAN-IP>:5443"""
     try:
         import qrcode
         import io
         from flask import send_file
-        url = f'http://{socket.gethostname()}.local:5443'
+        url = f'https://{_get_local_ip()}:5443'
         qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
                             box_size=8, border=2)
         qr.add_data(url)
@@ -610,12 +637,12 @@ def qr_ui_page():
 
 @app.route('/qr_ifb')
 def qr_ifb_page():
-    """QR code image for the /ifb page — points to procomm.local:5443/ifb"""
+    """QR code image for the /ifb page — points to https://<Pi-LAN-IP>:5443/ifb"""
     try:
         import qrcode
         import io
         from flask import send_file
-        url = 'https://procomm.local:5443/ifb'
+        url = f'https://{_get_local_ip()}:5443/ifb'
         qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
                             box_size=8, border=2)
         qr.add_data(url)
@@ -632,24 +659,28 @@ def qr_ifb_page():
 
 @app.route('/phone')
 def phone_page():
-    """Browser softphone page — served to users who scan the QR code"""
+    """Browser softphone — redirect HTTP to HTTPS:5443 (required for mic access)."""
+    if request.scheme == 'http':
+        return redirect(f'https://{_get_local_ip()}:5443/phone', code=302)
     return render_template('phone.html')
 
 
 @app.route('/ifb')
 def ifb_page():
-    """IFB monitor page — producers scan QR to listen to any active line"""
+    """IFB monitor — redirect HTTP to HTTPS:5443 (required for WebRTC audio)."""
+    if request.scheme == 'http':
+        return redirect(f'https://{_get_local_ip()}:5443/ifb', code=302)
     return render_template('ifb.html')
 
 
 @app.route('/qr_pl')
 def qr_pl_page():
-    """QR code image for the /pl page — points to procomm.local:5443/pl"""
+    """QR code image for the /pl page — points to https://<Pi-LAN-IP>:5443/pl"""
     try:
         import qrcode
         import io
         from flask import send_file
-        url = 'https://procomm.local:5443/pl'
+        url = f'https://{_get_local_ip()}:5443/pl'
         qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
                             box_size=8, border=2)
         qr.add_data(url)
@@ -666,7 +697,9 @@ def qr_pl_page():
 
 @app.route('/pl')
 def pl_page():
-    """Party Line page — crew members join PL conference lines"""
+    """Party Line — redirect HTTP to HTTPS:5443 (required for WebRTC audio)."""
+    if request.scheme == 'http':
+        return redirect(f'https://{_get_local_ip()}:5443/pl', code=302)
     return render_template('pl.html')
 
 

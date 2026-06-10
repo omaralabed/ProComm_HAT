@@ -17,3 +17,6 @@ g722>=1.2.0
 
 # QR code generation for web UI
 qrcode[pil]>=8.0
+
+# WebRTC audio bridge (browser phone, IFB, PL)
+aiortc>=1.9.0
