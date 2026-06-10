@@ -2230,8 +2230,9 @@ function toggleSettingsDropdown() {
                 const eth1Iface = ifaces.find(i => i.name !== 'eth0');
                 const eth1Sec = document.getElementById('net-eth1-section');
                 if (eth1Sec) {
-                    eth1Sec.style.display = 'none';
+                    eth1Sec.style.display = 'none'; // hidden — eth1 not in use
                     if (eth1Iface) {
+                        // eth1 section intentionally hidden in UI
                         document.getElementById('eth1-dhcp-ip').textContent = eth1Iface.ip || '—';
                         document.getElementById('eth1-dhcp-subnet').textContent = eth1Iface.subnet || '—';
                         document.getElementById('eth1-dhcp-gateway').textContent = eth1Iface.gateway || '—';

@@ -566,12 +566,12 @@ def api_boot_check():
 
 @app.route('/qr')
 def qr_page():
-    """QR code image for the /phone page — points to procomm.local:5000/phone"""
+    """QR code image for the /phone page — points to <hostname>.local:5443/phone"""
     try:
         import qrcode
         import io
         from flask import send_file
-        url = 'https://procomm.local:5443/phone'
+        url = f'http://{socket.gethostname()}.local:5443/phone'
         qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
                             box_size=8, border=2)
         qr.add_data(url)
@@ -588,12 +588,12 @@ def qr_page():
 
 @app.route('/qr_ui')
 def qr_ui_page():
-    """QR code image for the main UI — points to https://procomm.local:5443"""
+    """QR code image for the main UI — points to http://<hostname>.local:5443"""
     try:
         import qrcode
         import io
         from flask import send_file
-        url = 'https://procomm.local:5443'
+        url = f'http://{socket.gethostname()}.local:5443'
         qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_M,
                             box_size=8, border=2)
         qr.add_data(url)
@@ -896,8 +896,11 @@ def api_audio_fix_names():
         if sip_engine and hasattr(sip_engine, 'audio') and sip_engine.audio:
             result = sip_engine.audio.restart_dead_channels()
             logger.info(f"restart_dead_channels result: {result}")
-            # Restart headset dongle only if its worker is dead
-            headset_card = sip_engine.config.get('headset_card', -1) if hasattr(sip_engine, 'config') else -1
+            # Restart headset dongle only if its worker is dead.
+            # Use the audio manager's RESOLVED card (it auto-detects the USB
+            # headset), not the raw config value which may be stale (e.g. 0 =
+            # the HAT) on HAT-based units.
+            headset_card = getattr(sip_engine.audio, '_headset_card', -1)
             headset_already_running = getattr(sip_engine.audio, '_headset_running', False)
             if headset_card >= 0 and not headset_already_running and hasattr(sip_engine.audio, 'start_headset'):
                 try:
@@ -1767,25 +1770,32 @@ def api_set_static():
 # ============================================================================
 
 def _subnet_to_cidr(subnet_mask):
-    """Convert dotted subnet mask to CIDR prefix length."""
-    mapping = {
-        '255.255.255.255': 32,
-        '255.255.255.254': 31,
-        '255.255.255.252': 30,
-        '255.255.255.248': 29,
-        '255.255.255.240': 28,
-        '255.255.255.224': 27,
-        '255.255.255.192': 26,
-        '255.255.255.128': 25,
-        '255.255.255.0':   24,
-        '255.255.254.0':   23,
-        '255.255.252.0':   22,
-        '255.255.248.0':   21,
-        '255.255.240.0':   20,
-        '255.255.0.0':     16,
-        '255.0.0.0':        8,
-    }
-    return mapping.get(subnet_mask, 24)
+    """Convert a subnet to a CIDR prefix length, accepting any valid form.
+
+    Handles:
+      • a dotted mask  → '255.255.255.0', '255.255.254.0', '255.240.0.0', …
+      • a CIDR number  → '24', '/24', 24
+    Computes the prefix algorithmically (not a fixed table) so ANY valid mask
+    /0-/32 works. Falls back to 24 only if the input is unparseable.
+    """
+    if subnet_mask is None:
+        return 24
+    s = str(subnet_mask).strip().lstrip('/')
+    # Already a CIDR number?
+    if s.isdigit():
+        n = int(s)
+        return n if 0 <= n <= 32 else 24
+    # Dotted mask → count the contiguous 1-bits
+    try:
+        octets = [int(o) for o in s.split('.')]
+        if len(octets) != 4 or any(o < 0 or o > 255 for o in octets):
+            return 24
+        bits = ''.join(f'{o:08b}' for o in octets)
+        # Valid masks are 1s followed by 0s; count the leading 1s either way.
+        return bits.count('1')
+    except Exception:
+        return 24
+
 
 
 def _read_netplan():
@@ -1793,6 +1803,18 @@ def _read_netplan():
     try:
         r = subprocess.run(['sudo', 'cat', '/etc/netplan/50-cloud-init.yaml'],
                            capture_output=True, text=True, timeout=5)
+        return r.stdout if r.returncode == 0 else ''
+    except Exception:
+        return ''
+
+
+def _read_all_netplan():
+    """Concatenate every /etc/netplan/*.yaml file. Used for read-only mode
+    detection so interfaces configured in their own file (e.g. eth1 in
+    70-procomm-eth1.yaml) are also seen."""
+    try:
+        r = subprocess.run('sudo cat /etc/netplan/*.yaml',
+                           shell=True, capture_output=True, text=True, timeout=5)
         return r.stdout if r.returncode == 0 else ''
     except Exception:
         return ''
@@ -1854,8 +1876,9 @@ def _get_iface_info(name):
     except Exception as e:
         logger.error(f"_get_iface_info route {name}: {e}")
 
-    # DHCP vs static from netplan
-    netplan = _read_netplan()
+    # DHCP vs static from netplan (read ALL netplan files so interfaces
+    # configured in their own file — e.g. eth1 in 70-procomm-eth1.yaml — are seen)
+    netplan = _read_all_netplan()
     in_block = False
     for line in netplan.splitlines():
         stripped = line.strip().rstrip(':')
@@ -1989,6 +2012,54 @@ def api_interface_set(name):
         is_wlan = name.startswith('wlan')
         if mode == 'static' and not ip:
             return jsonify({'error': 'IP address is required for static mode'}), 400
+
+        # ── eth1 (Dante) — dedicated clean netplan file ────────────────────────
+        # eth1 gets its OWN complete, valid netplan file instead of being merged
+        # into 50-cloud-init.yaml (which is fragile and lost its `network:` header,
+        # causing "unknown key 'ethernets'"). No gateway/DNS so the Dante network
+        # stays isolated and eth0 remains the only default route. chmod 600 avoids
+        # the "permissions too open" warning.
+        if name == 'eth1':
+            if mode == 'dhcp':
+                body = (
+                    "network:\n"
+                    "  version: 2\n"
+                    "  renderer: NetworkManager\n"
+                    "  ethernets:\n"
+                    "    eth1:\n"
+                    "      optional: true\n"
+                    "      dhcp4: true\n"
+                    "      dhcp6: false\n"
+                )
+            else:
+                cidr = _subnet_to_cidr(subnet)
+                body = (
+                    "network:\n"
+                    "  version: 2\n"
+                    "  renderer: NetworkManager\n"
+                    "  ethernets:\n"
+                    "    eth1:\n"
+                    "      optional: true\n"
+                    "      dhcp4: false\n"
+                    "      dhcp6: false\n"
+                    "      addresses:\n"
+                    f"        - {ip}/{cidr}\n"
+                )
+            path = '/etc/netplan/70-procomm-eth1.yaml'
+            wr = subprocess.run(['sudo', 'tee', path],
+                                input=body, capture_output=True, text=True, timeout=10)
+            if wr.returncode != 0:
+                return jsonify({'error': f'Failed to write netplan: {wr.stderr}'}), 500
+            subprocess.run(['sudo', 'chmod', '600', path], capture_output=True, timeout=5)
+            ar = subprocess.run(['sudo', 'netplan', 'apply'],
+                                capture_output=True, text=True, timeout=30)
+            if ar.returncode != 0:
+                logger.error(f"netplan apply error (eth1): {ar.stderr}")
+                return jsonify({'error': f'netplan apply failed: {ar.stderr.strip()}'}), 500
+            logger.info(f"eth1 (Dante) configured: mode={mode} ip={ip or 'dhcp'}")
+            return jsonify({'status': 'ok',
+                            'message': f'eth1 configured: {mode}{" · " + ip if ip else ""}',
+                            'reboot': False})
 
         # Build netplan stanza for this interface
         if mode == 'dhcp':

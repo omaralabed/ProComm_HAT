@@ -18,7 +18,7 @@ from .line import Line, LineState
 from .events import EventEmitter, EventType, Event
 from .protocol import SIPParser, SIPBuilder, SIPMessage, DigestAuth, parse_sdp
 from .rtp import RTPStream, PAYLOAD_PCMU, PAYLOAD_PCMA, PAYLOAD_G722
-from .audio_usb_dongles import USBDongleAudioManager
+from .audio_i2s_hat import HATAudioManager as USBDongleAudioManager  # HAT replaces USB dongles
 from .stun import get_mapped_address_try_servers
 
 logger = logging.getLogger(__name__)
@@ -1531,9 +1531,13 @@ class SIPEngine:
                 headset_card=headset_card
             )
             logger.info(f"Using USB dongle audio mode, card mapping: {line_audio_cards}")
-                
-            if headset_card >= 0:
-                logger.info(f"Headset card resolved to ALSA card {headset_card}")
+
+            # Read back the card the manager actually resolved. On HAT units the
+            # manager auto-detects the USB headset, so this may differ from the
+            # value we passed in (e.g. -1/auto → the real USB card number).
+            resolved_headset = getattr(self.audio, '_headset_card', headset_card)
+            if resolved_headset >= 0:
+                logger.info(f"Headset card resolved to ALSA card {resolved_headset}")
             else:
                 logger.info("No headset card configured — headset feature disabled")
         else:

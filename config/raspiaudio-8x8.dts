@@ -1,6 +1,15 @@
 // Device Tree Overlay for RaspiAudio 8xIN+8xOUT HAT
-// Based on hifiberry-dac8x but adds DMIC capture support
+// Uses RP1 I2S (Designware) in TDM8 mode - avoids BCM2835 legacy I2S
 // Compatible with Raspberry Pi 5 (BCM2712)
+//
+// Key design choices:
+//  - Sound card created at root "/" (not &sound) to avoid BCM2835 I2S conflict
+//  - &gpio = RP1 GPIO (confirmed from Pi5 base DTS symbols)
+//  - &i2s_clk_producer = RP1 I2S0 /axi/pcie.../rp1/i2s@a0000 (Designware I2S)
+//  - All 10 TDM8 data pins configured (gpio18-27) matching hifiberry-dac8x.dtbo
+//  - PCM5102A for playback (4x stereo chips in TDM8 arrangement)
+//  - DMIC for capture (8ch PDM microphone array via I2S)
+//  - force_eeprom_read=0 must be set in config.txt to suppress EEPROM overlay
 
 /dts-v1/;
 /plugin/;
@@ -8,19 +17,22 @@
 / {
     compatible = "brcm,bcm2712";
 
-    // I2S pin configuration for Pi 5
+    // RP1 GPIO: configure all 10 TDM8 data pins (matches hifiberry-dac8x.dtbo)
+    // gpio18=BCLK, gpio19=LRCLK, gpio20-27=TDM data lines
     fragment@0 {
         target = <&gpio>;
         __overlay__ {
             rp1_i2s0_8x8_pins: rp1_i2s0_8x8_pins {
                 function = "i2s0";
-                pins = "gpio18", "gpio19", "gpio21", "gpio23", "gpio25", "gpio27";
+                pins = "gpio18", "gpio19", "gpio20", "gpio21",
+                       "gpio22", "gpio23", "gpio24", "gpio25",
+                       "gpio26", "gpio27";
                 bias-disable;
             };
         };
     };
 
-    // I2S controller setup
+    // RP1 I2S0 (Designware I2S at a0000): enable with TDM8 pin group
     fragment@1 {
         target = <&i2s_clk_producer>;
         __overlay__ {
@@ -30,7 +42,8 @@
         };
     };
 
-    // PCM5102A DAC codec (8-channel output)
+    // PCM5102A DAC codec nodes (4 chips, each stereo, all use same driver)
+    // No I2C/SPI control interface - hardware pin configured for TDM slot
     fragment@2 {
         target-path = "/";
         __overlay__ {
@@ -42,7 +55,7 @@
         };
     };
 
-    // DMIC codec for capture (8-channel input)
+    // DMIC codec for 8-channel capture
     fragment@3 {
         target-path = "/";
         __overlay__ {
@@ -56,48 +69,48 @@
         };
     };
 
-    // Sound card with separate playback and capture
+    // Sound card at root level - avoids &sound (BCM2712 legacy I2S node)
+    // Uses RP1 I2S (Designware) which supports TDM slot configuration
     fragment@4 {
-        target = <&sound>;
+        target-path = "/";
         __overlay__ {
-            compatible = "simple-audio-card";
-            simple-audio-card,name = "RaspiAudio_8x8";
-            simple-audio-card,format = "i2s";
-            status = "okay";
-            
-            // Playback (DAC) link
-            simple-audio-card,dai-link@0 {
-                format = "i2s";
-                bitclock-master = <&dailink0_master>;
-                frame-master = <&dailink0_master>;
-                mclk-fs = <256>;
-                
-                dailink0_master: cpu {
-                    sound-dai = <&i2s_clk_producer>;
-                    dai-tdm-slot-num = <8>;
-                    dai-tdm-slot-width = <32>;
+            sound_raspi8x8: sound-raspi8x8 {
+                compatible = "simple-audio-card";
+                simple-audio-card,name = "RaspiAudio_8x8";
+                status = "okay";
+
+                // Playback: RP1 I2S TDM8 -> 4x PCM5102A DAC
+                simple-audio-card,dai-link@0 {
+                    format = "dsp_a";
+                    bitclock-master = <&dailink0_master>;
+                    frame-master = <&dailink0_master>;
+
+                    dailink0_master: cpu {
+                        sound-dai = <&i2s_clk_producer>;
+                        dai-tdm-slot-num = <8>;
+                        dai-tdm-slot-width = <32>;
+                    };
+
+                    codec {
+                        sound-dai = <&pcm5102a_codec>;
+                    };
                 };
-                
-                codec {
-                    sound-dai = <&pcm5102a_codec>;
-                };
-            };
-            
-            // Capture (ADC) link
-            simple-audio-card,dai-link@1 {
-                format = "i2s";
-                bitclock-master = <&dailink1_master>;
-                frame-master = <&dailink1_master>;
-                mclk-fs = <256>;
-                
-                dailink1_master: cpu {
-                    sound-dai = <&i2s_clk_producer>;
-                    dai-tdm-slot-num = <8>;
-                    dai-tdm-slot-width = <32>;
-                };
-                
-                codec {
-                    sound-dai = <&dmic_codec>;
+
+                // Capture: RP1 I2S TDM8 <- DMIC array
+                simple-audio-card,dai-link@1 {
+                    format = "dsp_a";
+                    bitclock-master = <&dailink1_master>;
+                    frame-master = <&dailink1_master>;
+
+                    dailink1_master: cpu {
+                        sound-dai = <&i2s_clk_producer>;
+                        dai-tdm-slot-num = <8>;
+                        dai-tdm-slot-width = <32>;
+                    };
+
+                    codec {
+                        sound-dai = <&dmic_codec>;
+                    };
                 };
             };
         };

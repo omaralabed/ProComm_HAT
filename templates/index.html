@@ -33,7 +33,10 @@
     <!-- Header -->
     <div class="header">
         <div class="header-content">
-            <h1>ProComm</h1>
+            <div style="grid-column:2;text-align:center;">
+                <h1 style="margin:0;">ProComm</h1>
+                <div style="font-size:11px;color:#f59e0b;letter-spacing:0.12em;text-transform:uppercase;margin-top:4px;opacity:0.85;">Professional Communication</div>
+            </div>
             <div class="system-status">
                 <div class="status-indicator">
                     <div class="status-dot"></div>
@@ -253,10 +256,10 @@
                             </button>
                         </div>
 
-                        <!-- eth1 section (hidden - no secondary NIC) -->
+                        <!-- eth1 section (shown when secondary NIC is present) -->
                         <div id="net-eth1-section" style="display:none;">
                             <div class="settings-subdivider" style="margin: 14px 0;"></div>
-                            <div class="network-mode-label" style="font-weight:600; margin-bottom:8px;">🎛 eth1 — Secondary Network</div>
+                            <div class="network-mode-label" style="font-weight:600; margin-bottom:8px;">🎛 eth1 — Dante Network</div>
                             <div class="network-mode-toggle">
                                 <span class="network-mode-label active" id="eth1-dhcp-label">DHCP</span>
                                 <label class="switch">
