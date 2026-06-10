@@ -99,6 +99,16 @@ HW_CHUNK_SIZE   = 960        # headset dongle period
 
 MIC_GAIN = 3.0               # base linear gain applied to captured mic audio (at default fader)
 
+# ── Physical jack → TDM slot mapping ──────────────────────────────────────────
+# RaspiAudio 8xIN+8xOUT HAT: each 3.5mm jack carries 2 TDM channels (stereo).
+# Hardware TDM slot order (verified empirically):
+#   Jack 1 (TDM slots 0,1) → UI channels 1,2
+#   Jack 2 (TDM slots 6,7) → UI channels 3,4
+#   Jack 3 (TDM slots 4,5) → UI channels 5,6
+#   Jack 4 (TDM slots 2,3) → UI channels 7,8
+# UI channel N → TDM slot (0-indexed column in the interleaved S32_LE frame):
+_CH_TO_SLOT: dict = {1: 0, 2: 1, 3: 6, 4: 7, 5: 4, 6: 5, 7: 2, 8: 3}
+
 # ── Per-channel software volume (web UI faders) ─────────────────────────────────
 # The HAT is a single ALSA card with NO per-channel hardware mixer, so the IN/OUT
 # faders are applied as software gain multipliers inside the audio workers.
@@ -387,7 +397,7 @@ class HATAudioManager:
                 frames_i16 = (frames_i32 >> 16).astype(np.int16)
 
                 for ch in range(1, HAT_CHANNELS + 1):
-                    slot = ch - 1
+                    slot = _CH_TO_SLOT.get(ch, ch - 1)
                     lines_on_ch = self._channel_to_lines.get(ch)
                     if not lines_on_ch:
                         continue
@@ -483,7 +493,7 @@ class HATAudioManager:
                 out_i16 = np.zeros((HAT_PERIOD, HAT_CHANNELS), dtype=np.int16)
 
                 for ch in range(1, HAT_CHANNELS + 1):
-                    slot = ch - 1
+                    slot = _CH_TO_SLOT.get(ch, ch - 1)
                     q    = self._ch_output_queues[ch]
                     buf  = ch_buf[ch]
 
