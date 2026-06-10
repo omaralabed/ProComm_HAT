@@ -274,8 +274,8 @@ def init_phone_system():
             return False
         
         # Initialize SIP engine
-        # Lines 1-8: USB dongle lines (physical audio)
-        # Lines 9-28: Browser phone lines (WebRTC audio, no USB card)
+        # Lines 1-8: I2S HAT lines (RaspiAudio 8xIN+8xOUT, TDM slot = channel-1)
+        # Lines 9-28: Browser phone lines (WebRTC audio, no physical audio card)
         logger.info("Initializing Smart SIP Engine...")
         sip_engine = SIPEngine(num_lines=35, config_path=config_path)
         

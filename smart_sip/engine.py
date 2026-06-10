@@ -1448,9 +1448,20 @@ class SIPEngine:
                 time.sleep(retry_delay_sec)
         
         # Create audio manager based on audio_mode config
-        audio_mode = self.config.get("audio_mode", "usb_dongles")
+        audio_mode = self.config.get("audio_mode", "i2s_hat")
 
-        if audio_mode == "usb_dongles":
+        if audio_mode == "i2s_hat":
+            # RaspiAudio 8xIN+8xOUT HAT — single 8-channel TDM ALSA card.
+            # Channel N (UI) maps directly to TDM slot N-1; no USB card
+            # discovery needed.
+            headset_card = self.config.get("headset_card", -1)
+            self.audio = USBDongleAudioManager(
+                max_lines=self.num_lines,
+                line_to_card=None,
+                headset_card=headset_card
+            )
+            logger.info("Using I2S HAT audio mode (RaspiAudio 8xIN+8xOUT)")
+        elif audio_mode == "usb_dongles":
             # USB audio dongles — separate card per line/channel
             # Run the mapping script to discover current USB dongle positions.
             # We read stdout directly to avoid /tmp file permission issues (udev
@@ -1541,15 +1552,14 @@ class SIPEngine:
             else:
                 logger.info("No headset card configured — headset feature disabled")
         else:
-            # Fallback: USB dongles with defaults
-            line_audio_cards = self.config.get("line_audio_cards", {})
+            # Unknown audio_mode — default to I2S HAT
             headset_card = self.config.get("headset_card", -1)
             self.audio = USBDongleAudioManager(
                 max_lines=self.num_lines,
-                line_to_card=line_audio_cards or None,
+                line_to_card=None,
                 headset_card=headset_card
             )
-            logger.info(f"Using USB dongle audio mode (fallback), card mapping: {line_audio_cards}")
+            logger.warning(f"Unknown audio_mode '{audio_mode}' — defaulting to I2S HAT")
 
         # Initialize audio
         if not self.audio.initialize():
