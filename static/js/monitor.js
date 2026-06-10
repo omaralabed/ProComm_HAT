@@ -67,7 +67,6 @@ function buildGrid() {
       '<path d="M3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>' +
       '</svg>' +
       '<div class="card-ch-num">CH ' + ch + '</div>' +
-      '<div class="card-jack-label">' + jackLabel(ch) + '</div>' +
       '<div class="card-status">Idle</div>';
     card.addEventListener('click', function () { onCardTap(ch); });
     elGrid.appendChild(card);
